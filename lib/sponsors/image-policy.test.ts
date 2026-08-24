@@ -52,7 +52,10 @@ vi.mock("@/lib/supabase-admin", () => ({
 const campaignId = "c0000000-0000-4000-8000-000000000001";
 const pngBytes = createPng();
 const jpegBytes = createJpeg();
-const webpBytes = createWebP("VP8X", new Uint8Array(10));
+const webpBytes = createWebP(
+  "VP8L",
+  Uint8Array.from([0x2f, 0x00, 0x00, 0x00, 0x00, 0x00])
+);
 const generatedImageId = "90000000-0000-4000-8000-000000000002";
 const validSponsorPath =
   `sponsors/${campaignId}/article_inline/${generatedImageId}.png`;
@@ -152,6 +155,49 @@ describe("validateSponsorImage", () => {
     [
       "a WebP chunk whose declared length overruns the RIFF payload",
       fileFromBytes(webPWithOverrunningChunk(), "overrun.webp", "image/webp"),
+    ],
+    [
+      "a WebP with only a VP8X extended header",
+      fileFromBytes(
+        createWebP("VP8X", new Uint8Array(10)),
+        "header-only-extended.webp",
+        "image/webp"
+      ),
+    ],
+    [
+      "an unsupported extended WebP even when it has image content",
+      fileFromBytes(
+        createWebPFromChunks([
+          ["VP8X", new Uint8Array(10)],
+          ["VP8L", webpBytes.slice(20, 26)],
+        ]),
+        "extended.webp",
+        "image/webp"
+      ),
+    ],
+    [
+      "a VP8 WebP with a frame header but no compressed payload",
+      fileFromBytes(
+        createWebP(
+          "VP8 ",
+          Uint8Array.from([
+            0x00, 0x00, 0x00, 0x9d, 0x01, 0x2a, 0x01, 0x00, 0x01, 0x00,
+          ])
+        ),
+        "header-only-vp8.webp",
+        "image/webp"
+      ),
+    ],
+    [
+      "a VP8L WebP with a frame header but no compressed payload",
+      fileFromBytes(
+        createWebP(
+          "VP8L",
+          Uint8Array.from([0x2f, 0x00, 0x00, 0x00, 0x00])
+        ),
+        "header-only-vp8l.webp",
+        "image/webp"
+      ),
     ],
   ])("rejects structurally malformed %s", async (_label, file) => {
     await expect(validateSponsorImage(file)).rejects.toMatchObject({
@@ -695,15 +741,29 @@ function jpegWithScanBeforeFrame(): Uint8Array {
 }
 
 function createWebP(chunkType: string, chunkData: Uint8Array): Uint8Array {
-  const paddedLength = chunkData.byteLength + (chunkData.byteLength % 2);
-  const bytes = new Uint8Array(12 + 8 + paddedLength);
+  return createWebPFromChunks([[chunkType, chunkData]]);
+}
+
+function createWebPFromChunks(
+  chunks: ReadonlyArray<readonly [string, Uint8Array]>
+): Uint8Array {
+  const chunkBytes = chunks.map(([chunkType, chunkData]) => {
+    const paddedLength = chunkData.byteLength + (chunkData.byteLength % 2);
+    const bytes = new Uint8Array(8 + paddedLength);
+    const view = new DataView(bytes.buffer);
+    bytes.set(new TextEncoder().encode(chunkType), 0);
+    view.setUint32(4, chunkData.byteLength, true);
+    bytes.set(chunkData, 8);
+    return bytes;
+  });
+  const bytes = new Uint8Array(
+    12 + chunkBytes.reduce((total, chunk) => total + chunk.byteLength, 0)
+  );
   const view = new DataView(bytes.buffer);
   bytes.set(new TextEncoder().encode("RIFF"), 0);
   view.setUint32(4, bytes.byteLength - 8, true);
   bytes.set(new TextEncoder().encode("WEBP"), 8);
-  bytes.set(new TextEncoder().encode(chunkType), 12);
-  view.setUint32(16, chunkData.byteLength, true);
-  bytes.set(chunkData, 20);
+  bytes.set(concatenate(chunkBytes), 12);
   return bytes;
 }
 
