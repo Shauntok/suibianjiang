@@ -91,6 +91,26 @@ describe("campaignInputSchema", () => {
 });
 
 describe("settingsInputSchema", () => {
+  it("defaults an omitted commercialEnabled switch to false", () => {
+    const settings = settingsInputSchema.parse({
+      minimumParagraphs: 8,
+      minimumCharacters: 1200,
+      maxAdsPerPage: 2,
+      eligibleProbability: 60,
+      cooldownPageViews: 2,
+      maxAdPagesPerTen: 4,
+      timezone: "Asia/Kuala_Lumpur",
+      placementPriority: [
+        "article_inline",
+        "article_after",
+        "desktop_left",
+        "desktop_right",
+      ],
+    });
+
+    expect(settings.commercialEnabled).toBe(false);
+  });
+
   it("accepts the approved settings fixture and defaults every placement off", () => {
     const settings = settingsInputSchema.parse(validSettings);
 

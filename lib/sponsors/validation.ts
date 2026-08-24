@@ -99,7 +99,7 @@ export const campaignInputSchema = z
 
 export const settingsInputSchema = z
   .object({
-    commercialEnabled: z.boolean(),
+    commercialEnabled: z.boolean().default(false),
     placementEnabled: placementEnabledSchema,
     minimumParagraphs: nonNegativeInteger,
     minimumCharacters: nonNegativeInteger,
