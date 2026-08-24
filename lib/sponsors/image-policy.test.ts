@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "@/app/api/admin/sponsors/upload/route";
@@ -200,32 +202,27 @@ describe("readBoundedMultipart", () => {
 
 describe("POST /api/admin/sponsors/upload", () => {
   it("rejects cross-origin requests before authentication or body reads", async () => {
-    const pull = vi.fn();
     const request = streamingUploadRequest(pngBytes, {
       origin: "https://attacker.test",
-      pull,
     });
-    const pullsBeforePost = pull.mock.calls.length;
 
     const response = await POST(request);
 
     expect(response.status).toBe(403);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(authMocks.getAdminActor).not.toHaveBeenCalled();
-    expect(pull).toHaveBeenCalledTimes(pullsBeforePost);
+    expect(request.bodyUsed).toBe(false);
   });
 
   it("authenticates before reading multipart bytes", async () => {
     authMocks.getAdminActor.mockResolvedValue(null);
-    const pull = vi.fn();
-    const request = streamingUploadRequest(pngBytes, { pull });
-    const pullsBeforePost = pull.mock.calls.length;
+    const request = streamingUploadRequest(pngBytes);
 
     const response = await POST(request);
 
     expect(response.status).toBe(401);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(pull).toHaveBeenCalledTimes(pullsBeforePost);
+    expect(request.bodyUsed).toBe(false);
     expect(storageMocks.upload).not.toHaveBeenCalled();
   });
 
@@ -234,30 +231,25 @@ describe("POST /api/admin/sponsors/upload", () => {
       id: "moderator-1",
       role: "moderator",
     });
-    const pull = vi.fn();
-    const request = streamingUploadRequest(pngBytes, { pull });
-    const pullsBeforePost = pull.mock.calls.length;
+    const request = streamingUploadRequest(pngBytes);
 
     const response = await POST(request);
 
     expect(response.status).toBe(403);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(pull).toHaveBeenCalledTimes(pullsBeforePost);
+    expect(request.bodyUsed).toBe(false);
     expect(storageMocks.upload).not.toHaveBeenCalled();
   });
 
   it("rejects a declared oversized request without consuming its body", async () => {
-    const pull = vi.fn();
     const request = streamingUploadRequest(pngBytes, {
       contentLength: String(SPONSOR_UPLOAD_REQUEST_LIMIT + 1),
-      pull,
     });
-    const pullsBeforePost = pull.mock.calls.length;
 
     const response = await POST(request);
 
     expect(response.status).toBe(413);
-    expect(pull).toHaveBeenCalledTimes(pullsBeforePost);
+    expect(request.bodyUsed).toBe(false);
     expect(storageMocks.upload).not.toHaveBeenCalled();
   });
 
@@ -309,7 +301,6 @@ function streamingUploadRequest(
   options: {
     contentLength?: string;
     origin?: string;
-    pull?: ReturnType<typeof vi.fn>;
   } = {}
 ): Request {
   const boundary = "our-little-age-sponsor-boundary";
@@ -338,21 +329,19 @@ function streamingUploadRequest(
   return new Request("https://ourlittleage.test/api/admin/sponsors/upload", {
     method: "POST",
     headers,
-    body: streamBody([prefix, fileBytes, suffix], undefined, options.pull),
+    body: streamBody([prefix, fileBytes, suffix]),
     duplex: "half",
   } as RequestInit & { duplex: "half" });
 }
 
 function streamBody(
   chunks: Uint8Array[],
-  cancel?: (reason?: unknown) => void,
-  pullSpy?: ReturnType<typeof vi.fn>
+  cancel?: (reason?: unknown) => void
 ): ReadableStream<Uint8Array> {
   const pendingChunks = [...chunks];
 
   return new ReadableStream<Uint8Array>({
     pull(controller) {
-      pullSpy?.();
       const chunk = pendingChunks.shift();
 
       if (chunk) {
