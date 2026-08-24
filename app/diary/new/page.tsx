@@ -3,8 +3,6 @@
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { addUserGrowth } from "@/lib/community-growth";
-import { checkFirstDiaryBadge } from "@/lib/badge-awards";
 import MarkdownPreview from "@/components/editor/MarkdownPreview";
 import VisibilitySelector from "@/components/editor/VisibilitySelector";
 import MarkdownToolbar from "@/components/editor/MarkdownToolbar";
@@ -312,14 +310,6 @@ export default function NewDiaryPage() {
       setEditorMessage(error.message);
       return;
     }
-
-    await addUserGrowth({
-      userId: currentUser.id,
-      light: 0.03,
-      reason: "write_diary",
-    });
-
-    await checkFirstDiaryBadge(currentUser.id);
 
     router.push("/diary");
   }

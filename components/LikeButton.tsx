@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { addUserGrowth } from "@/lib/community-growth";
 
 type Props = {
   postId: number;
@@ -52,57 +51,6 @@ export default function LikeButton({
       .maybeSingle();
 
     setLiked(!!myLike?.is_active);
-  }
-
-  async function notifyAuthor(actorId: string) {
-    if (!actorId || actorId === authorId) return;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("username")
-      .eq("id", actorId)
-      .maybeSingle();
-
-    const likerName = profile?.username || "有位居民";
-
-    const { error } = await supabase.rpc("create_notification", {
-      p_user_id: authorId,
-      p_title: "有人喜欢了你的内容 💗",
-      p_content: `${likerName} 刚刚给你的内容留下了一点喜欢。`,
-      p_type: "system",
-    });
-
-    if (error) {
-      console.error("notifyAuthor rpc error:", error);
-    }
-  }
-
-  async function rewardAuthor(actorId: string, likeId: string) {
-    if (!actorId || actorId === authorId) return;
-
-    const success = await addUserGrowth({
-      userId: authorId,
-      actorId,
-      light: 0.005,
-      reason: "post_liked",
-    });
-
-    if (!success) return;
-
-    const { error: rewardError } = await supabase
-      .from("post_likes")
-      .update({
-        rewarded: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", likeId);
-
-    if (rewardError) {
-      console.error("mark like rewarded error:", rewardError);
-      return;
-    }
-
-    await notifyAuthor(actorId);
   }
 
   async function toggleLike() {
@@ -174,15 +122,11 @@ export default function LikeButton({
       setLiked(true);
       setLikeCount((current) => current + 1);
 
-      if (!existingLike.rewarded) {
-        await rewardAuthor(currentUserId, existingLike.id);
-      }
-
       setLoading(false);
       return;
     }
 
-    const { data: insertedLike, error } = await supabase
+    const { error } = await supabase
       .from("post_likes")
       .insert([
         {
@@ -192,7 +136,7 @@ export default function LikeButton({
           rewarded: false,
         },
       ])
-      .select("id, rewarded")
+      .select("id")
       .single();
 
     if (error) {
@@ -203,8 +147,6 @@ export default function LikeButton({
 
     setLiked(true);
     setLikeCount((current) => current + 1);
-
-    await rewardAuthor(currentUserId, insertedLike.id);
 
     setLoading(false);
   }

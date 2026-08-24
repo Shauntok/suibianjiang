@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { timingSafeEqual } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +12,20 @@ const supabaseAdmin = createClient(
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
+    const cronSecret = process.env.CRON_SECRET;
 
-    if (process.env.NODE_ENV === "production" && process.env.CRON_SECRET) {
-      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    if (!cronSecret) {
+      console.error("CRON_SECRET is not configured");
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
+
+    const expected = Buffer.from(`Bearer ${cronSecret}`);
+    const received = Buffer.from(authHeader || "");
+    const authorized =
+      expected.length === received.length && timingSafeEqual(expected, received);
+
+    if (!authorized) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const now = new Date().toISOString();
@@ -37,20 +47,23 @@ export async function GET(request: Request) {
       console.error("cleanup trashed notifications skipped:", error);
     }
 
-    return NextResponse.json({
-      ok: true,
-      announcementsPublished,
-      broadcastsSent,
-      trashedNotificationsDeleted,
-      now,
-    });
-  } catch (error: any) {
+    return NextResponse.json(
+      {
+        ok: true,
+        announcementsPublished,
+        broadcastsSent,
+        trashedNotificationsDeleted,
+        now,
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  } catch (error) {
     console.error("cron publish error:", error);
 
     return NextResponse.json(
       {
         ok: false,
-        error: error?.message ?? "Unknown error",
+        error: "Scheduled publishing failed",
       },
       { status: 500 }
     );

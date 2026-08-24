@@ -241,7 +241,7 @@ export default function ProfileSettingsPage() {
     setUploading(true);
 
     const cleanName = file.name.replace(/\s+/g, "-");
-    const fileName = `${user.id}-${Date.now()}-${cleanName}`;
+    const fileName = `${user.id}/${Date.now()}-${cleanName}`;
 
     const { error } = await supabase.storage
       .from("avatars")

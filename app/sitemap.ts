@@ -1,8 +1,11 @@
 import type { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabase";
+import { SITE_URL } from "@/lib/site";
+
+export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://ourlittleage.com";
+  const baseUrl = SITE_URL;
 
   const staticPages: MetadataRoute.Sitemap = [
     {
@@ -18,9 +21,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/articles`,
+      url: `${baseUrl}/space/diaries`,
       lastModified: new Date(),
-      changeFrequency: "daily",
+      changeFrequency: "hourly",
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/space/articles`,
+      lastModified: new Date(),
+      changeFrequency: "hourly",
       priority: 0.8,
     },
     {
@@ -31,12 +40,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const { data: articles } = await supabase
-    .from("posts")
-    .select("slug, published_at")
-    .eq("type", "article")
-    .eq("status", "published")
-    .eq("visibility", "public");
+  const [articlesResult, diariesResult, usersResult] = await Promise.all([
+    supabase
+      .from("posts")
+      .select("slug, published_at")
+      .eq("type", "article")
+      .eq("status", "published")
+      .eq("visibility", "public")
+      .is("deleted_at", null)
+      .not("slug", "is", null),
+    supabase
+      .from("posts")
+      .select("id, published_at")
+      .eq("type", "diary")
+      .eq("status", "published")
+      .eq("visibility", "public")
+      .is("deleted_at", null),
+    supabase
+      .from("profiles")
+      .select("username, updated_at")
+      .not("username", "is", null),
+  ]);
+
+  const articles = articlesResult.data;
+  const diaries = diariesResult.data;
+  const users = usersResult.data;
 
   const articlePages: MetadataRoute.Sitemap =
     articles?.map((article) => ({
@@ -48,13 +76,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     })) || [];
 
-  const { data: diaries } = await supabase
-    .from("posts")
-    .select("id, published_at")
-    .eq("type", "diary")
-    .eq("status", "published")
-    .eq("visibility", "public");
-
   const diaryPages: MetadataRoute.Sitemap =
     diaries?.map((diary) => ({
       url: `${baseUrl}/diary/${diary.id}`,
@@ -64,11 +85,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.6,
     })) || [];
-
-  const { data: users } = await supabase
-    .from("profiles")
-    .select("username, updated_at")
-    .not("username", "is", null);
 
   const userPages: MetadataRoute.Sitemap =
     users?.map((user) => ({
@@ -80,10 +96,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     })) || [];
 
-  return [
-    ...staticPages,
-    ...articlePages,
-    ...diaryPages,
-    ...userPages,
-  ];
+  return [...staticPages, ...articlePages, ...diaryPages, ...userPages];
 }

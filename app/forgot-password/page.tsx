@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { SITE_URL } from "@/lib/site";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -29,7 +30,7 @@ export default function ForgotPasswordPage() {
     setSending(true);
 
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-      redirectTo: "https://ourlittleage.com/reset-password",
+      redirectTo: `${SITE_URL}/reset-password`,
     });
 
     setSending(false);

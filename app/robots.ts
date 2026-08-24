@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/site";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -14,12 +15,19 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           "/home",
           "/admin",
+          "/admin-login",
           "/settings",
           "/notifications",
           "/drafts",
+          "/login",
+          "/forgot-password",
+          "/reset-password",
+          "/feedback",
+          "/search",
         ],
       },
     ],
-    sitemap: "https://ourlittleage.com/sitemap.xml",
+    host: SITE_URL,
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

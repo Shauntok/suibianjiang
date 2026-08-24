@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import SpaceClient, { SpacePost } from "@/components/SpaceClient";
+import { SITE_URL } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "故事广场",
+  description: "在小时代的广场，遇见居民公开留下的日记与故事。",
+  alternates: { canonical: `${SITE_URL}/space` },
+};
 
 export const dynamic = "force-dynamic";
 

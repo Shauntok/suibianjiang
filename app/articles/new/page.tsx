@@ -3,8 +3,6 @@
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { addUserGrowth } from "@/lib/community-growth";
-import { checkFirstArticleBadge } from "@/lib/badge-awards";
 import {
   generateArticleSlug,
   checkArticleSlugExists,
@@ -293,14 +291,6 @@ export default function NewArticlePage() {
         setLoading(false);
         return;
       }
-
-      await addUserGrowth({
-        userId: currentUser.id,
-        light: 0.08,
-        reason: "publish_article",
-      });
-
-      await checkFirstArticleBadge(currentUser.id);
 
       router.push(`/articles/${finalSlug}`);
     } catch (error: any) {

@@ -74,11 +74,6 @@ export default function DiaryDetailPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) {
-        router.push("/");
-        return;
-      }
-
       const { data, error } = await supabase
         .from("posts")
         .select("*")
@@ -92,7 +87,7 @@ export default function DiaryDetailPage() {
         return;
       }
 
-      const isOwner = data.author_id === user.id;
+      const isOwner = data.author_id === user?.id;
 
       const canView =
         isOwner ||

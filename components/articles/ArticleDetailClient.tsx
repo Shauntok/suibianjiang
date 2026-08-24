@@ -19,6 +19,13 @@ function getProfile(profile: ProfileInfo | ProfileInfo[] | null) {
   return profile;
 }
 
+function formatMalaysiaDateTime(value: string) {
+  const date = new Date(new Date(value).getTime() + 8 * 60 * 60 * 1000);
+  const pad = (part: number) => String(part).padStart(2, "0");
+
+  return `${date.getUTCFullYear()}年${date.getUTCMonth() + 1}月${date.getUTCDate()}日 ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+}
+
 function getVisibilityLabel(visibility: string) {
   switch (visibility) {
     case "public":
@@ -34,13 +41,17 @@ function getVisibilityLabel(visibility: string) {
   }
 }
 
-export default function ArticleDetailClient() {
+export default function ArticleDetailClient({
+  initialArticle = null,
+}: {
+  initialArticle?: any;
+}) {
   const params = useParams();
   const router = useRouter();
   const slug = String(params.slug);
 
-  const [loading, setLoading] = useState(true);
-  const [article, setArticle] = useState<any>(null);
+  const [loading, setLoading] = useState(!initialArticle);
+  const [article, setArticle] = useState<any>(initialArticle);
   const [currentUserId, setCurrentUserId] = useState("");
 
   useEffect(() => {
@@ -49,8 +60,18 @@ export default function ArticleDetailClient() {
         data: { user },
       } = await supabase.auth.getUser();
 
+      if (initialArticle) {
+        setCurrentUserId(user?.id || "");
+        setArticle((current: any) => ({
+          ...current,
+          isAuthor: Boolean(user && current.author_id === user.id),
+        }));
+        setLoading(false);
+        return;
+      }
+
       if (!user) {
-        router.push("/");
+        router.push("/space/articles");
         return;
       }
 
@@ -65,7 +86,7 @@ export default function ArticleDetailClient() {
         .single();
 
       if (error || !data) {
-        router.push("/articles");
+        router.push("/space/articles");
         return;
       }
 
@@ -77,7 +98,7 @@ export default function ArticleDetailClient() {
           (data.visibility === "public" || data.visibility === "unlisted"));
 
       if (!canView) {
-        router.push("/articles");
+        router.push("/space/articles");
         return;
       }
 
@@ -121,7 +142,7 @@ export default function ArticleDetailClient() {
     }
 
     fetchArticle();
-  }, [slug, router]);
+  }, [initialArticle, slug, router]);
 
   if (loading) {
     return (
@@ -211,7 +232,7 @@ export default function ArticleDetailClient() {
             )}
 
             <p className="safe-text text-xs text-white/35 md:text-sm">
-              {new Date(articleDate).toLocaleString("zh-CN")}
+              {formatMalaysiaDateTime(articleDate)}
             </p>
           </div>
 
@@ -285,7 +306,7 @@ export default function ArticleDetailClient() {
                 <p>后来又回来整理过这篇故事。</p>
 
                 <p className="mt-2 text-white/25">
-                  修改于：{new Date(article.edited_at).toLocaleString()}
+                  修改于：{formatMalaysiaDateTime(article.edited_at)}
                 </p>
               </>
             ) : (

@@ -8,6 +8,7 @@ import { LanguageProvider } from "@/components/LanguageProvider";
 import SiteShell from "@/components/SiteShell";
 import PageRouterTransition from "@/components/PageRouterTransition";
 import PresenceHeartbeat from "@/components/PresenceHeartbeat";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,7 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://ourlittleage.com"),
+  metadataBase: new URL(SITE_URL),
 
   title: {
     default: "小时代｜深夜故事社区",
@@ -34,8 +35,8 @@ export const metadata: Metadata = {
     title: "小时代｜深夜故事社区",
     description:
       "世界已经睡了，但这里还有一些人，静静留下今天。",
-    url: "https://ourlittleage.com",
-    siteName: "小时代",
+    url: SITE_URL,
+    siteName: SITE_NAME,
     locale: "zh_CN",
     type: "website",
 
@@ -57,9 +58,6 @@ export const metadata: Metadata = {
     images: ["/og-cover.png"],
   },
 
-  alternates: {
-    canonical: "https://ourlittleage.com",
-  },
 };
 
 export const viewport: Viewport = {

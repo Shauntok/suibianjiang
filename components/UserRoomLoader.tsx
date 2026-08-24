@@ -102,7 +102,9 @@ export default function UserRoomLoader({
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("*")
+      .select(
+        "id,username,avatar_url,created_at,bio,role,banner_url,level,exp,trust_score,show_level,show_exp,show_trust_score,joined_at,show_joined_days,status,status_message,mood_emoji,status_expires_at,last_seen_at,banner_position,theme,show_badges"
+      )
       .eq("username", username)
       .maybeSingle();
 

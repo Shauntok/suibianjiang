@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +9,34 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    const requestUrl = new URL(request.url);
+    const origin = request.headers.get("origin");
+
+    if (origin && origin !== requestUrl.origin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!profile || !["owner", "admin", "moderator"].includes(profile.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const now = new Date().toISOString();
 
     const { data: announcements, error: fetchError } = await supabaseAdmin
@@ -87,13 +114,13 @@ export async function POST() {
       ok: true,
       published,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("publish due announcements error:", error);
 
     return NextResponse.json(
       {
         ok: false,
-        error: error?.message ?? "Unknown error",
+        error: "Unable to publish due announcements",
       },
       { status: 500 }
     );

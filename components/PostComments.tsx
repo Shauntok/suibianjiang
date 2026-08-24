@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { addUserGrowth } from "@/lib/community-growth";
 import ReportButton from "@/components/ReportButton";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { checkFirstCommentBadge } from "@/lib/badge-awards";
 
 type Props = {
   postId: number;
@@ -46,8 +44,6 @@ export default function PostComments({ postId }: Props) {
   const [deleting, setDeleting] = useState(false);
 
   const [currentUserId, setCurrentUserId] = useState("");
-  const [postAuthorId, setPostAuthorId] = useState("");
-
   const [message, setMessage] = useState("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -74,87 +70,10 @@ export default function PostComments({ postId }: Props) {
     return user;
   }
 
-  async function fetchPostAuthor() {
-    const { data } = await supabase
-      .from("posts")
-      .select("author_id")
-      .eq("id", postId)
-      .maybeSingle();
-
-    if (data?.author_id) {
-      setPostAuthorId(data.author_id);
-      return data.author_id as string;
-    }
-
-    return "";
-  }
-
-  async function getCurrentUsername(userId: string) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("username")
-      .eq("id", userId)
-      .maybeSingle();
-
-    return data?.username || "有位居民";
-  }
-
-  async function notifyPostAuthor({
-    senderId,
-    targetAuthorId,
-    commentContent,
-  }: {
-    senderId: string;
-    targetAuthorId: string;
-    commentContent: string;
-  }) {
-    if (!senderId || !targetAuthorId || senderId === targetAuthorId) return;
-
-    const senderName = await getCurrentUsername(senderId);
-
-    await supabase.from("notifications").insert([
-      {
-        user_id: targetAuthorId,
-        title: "有人给你的内容留言了 💬",
-        content: `${senderName} 留下了一句话：${commentContent.slice(0, 80)}`,
-        type: "system",
-        is_read: false,
-        is_starred: false,
-        is_important: false,
-      },
-    ]);
-  }
-
-  async function notifyCommentAuthor({
-    senderId,
-    targetAuthorId,
-  }: {
-    senderId: string;
-    targetAuthorId: string;
-  }) {
-    if (!senderId || !targetAuthorId || senderId === targetAuthorId) return;
-
-    const senderName = await getCurrentUsername(senderId);
-
-    await supabase.from("notifications").insert([
-      {
-        user_id: targetAuthorId,
-        title: "有人喜欢了你的留言 💗",
-        content: `${senderName} 刚刚喜欢了你留下的留言。`,
-        type: "system",
-        is_read: false,
-        is_starred: false,
-        is_important: false,
-      },
-    ]);
-  }
-
   async function fetchComments() {
     setFetching(true);
 
     const user = await fetchCurrentUser();
-    await fetchPostAuthor();
-
     const { data, error } = await supabase
       .from("comments")
       .select(`
@@ -280,22 +199,6 @@ export default function PostComments({ postId }: Props) {
       return;
     }
 
-    await addUserGrowth({
-      userId: user.id,
-      light: 0.01,
-      reason: "write_comment",
-    });
-
-    await checkFirstCommentBadge(user.id);
-
-    const targetAuthorId = postAuthorId || (await fetchPostAuthor());
-
-    await notifyPostAuthor({
-      senderId: user.id,
-      targetAuthorId,
-      commentContent: finalContent,
-    });
-
     setContent("");
     fetchComments();
   }
@@ -384,34 +287,11 @@ export default function PostComments({ postId }: Props) {
         )
       );
 
-      if (!existingLike.rewarded) {
-        const success = await addUserGrowth({
-          userId: comment.author_id,
-          light: 0.003,
-          reason: "comment_liked",
-        });
-
-        if (success) {
-          await supabase
-            .from("comment_likes")
-            .update({
-              rewarded: true,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existingLike.id);
-        }
-
-        await notifyCommentAuthor({
-          senderId: currentUserId,
-          targetAuthorId: comment.author_id,
-        });
-      }
-
       setLikeLoadingId(null);
       return;
     }
 
-    const { data: insertedLike, error } = await supabase
+    const { error } = await supabase
       .from("comment_likes")
       .insert([
         {
@@ -421,7 +301,7 @@ export default function PostComments({ postId }: Props) {
           rewarded: false,
         },
       ])
-      .select("id, rewarded")
+      .select("id")
       .single();
 
     if (error) {
@@ -441,29 +321,6 @@ export default function PostComments({ postId }: Props) {
           : item
       )
     );
-
-    if (insertedLike && !insertedLike.rewarded) {
-      const success = await addUserGrowth({
-        userId: comment.author_id,
-        light: 0.003,
-        reason: "comment_liked",
-      });
-
-      if (success) {
-        await supabase
-          .from("comment_likes")
-          .update({
-            rewarded: true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", insertedLike.id);
-      }
-
-      await notifyCommentAuthor({
-        senderId: currentUserId,
-        targetAuthorId: comment.author_id,
-      });
-    }
 
     setLikeLoadingId(null);
   }

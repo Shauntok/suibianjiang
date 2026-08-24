@@ -1,7 +1,15 @@
+import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import DiariesSpaceClient, {
   DiaryPost,
 } from "@/components/DiariesSpaceClient";
+import { SITE_URL } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "日记广场",
+  description: "翻开小时代居民在清晨、午后与深夜公开留下的日记。",
+  alternates: { canonical: `${SITE_URL}/space/diaries` },
+};
 
 export const dynamic = "force-dynamic";
 

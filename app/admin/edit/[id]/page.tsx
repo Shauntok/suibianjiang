@@ -135,8 +135,22 @@ export default function EditPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024) {
+      showMessage("请选择不超过 10MB 的图片文件。");
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      showMessage("请先登录后再上传图片。");
+      return;
+    }
+
     const cleanName = file.name.replace(/\s+/g, "-");
-    const fileName = `${Date.now()}-${cleanName}`;
+    const fileName = `${user.id}/${Date.now()}-${cleanName}`;
 
     const { error } = await supabase.storage
       .from("images")

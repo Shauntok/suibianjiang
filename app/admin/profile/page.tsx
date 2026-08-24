@@ -228,7 +228,7 @@ export default function AdminProfilePage() {
     setUploading(true);
 
     const fileExt = file.name.split(".").pop();
-    const fileName = `${user.id}.${fileExt}`;
+    const fileName = `${user.id}/avatar.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from("avatars")
@@ -249,7 +249,7 @@ export default function AdminProfilePage() {
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
-        avatar: publicUrl,
+        avatar_url: publicUrl,
       })
       .eq("id", user.id);
 
@@ -276,7 +276,7 @@ export default function AdminProfilePage() {
     setBannerUploading(true);
 
     const fileExt = file.name.split(".").pop();
-    const fileName = `${user.id}.${fileExt}`;
+    const fileName = `${user.id}/banner.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from("banners")
