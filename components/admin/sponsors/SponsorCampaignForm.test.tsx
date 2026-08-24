@@ -1,5 +1,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import SponsorCampaignForm from "@/components/admin/sponsors/SponsorCampaignForm";
 import SponsorSettingsPanel from "@/components/admin/sponsors/SponsorSettingsPanel";
@@ -94,6 +103,19 @@ const defaultSettings: SponsorSettings = {
 };
 
 let fetchMock: ReturnType<typeof vi.fn>;
+const originalTimezone = process.env.TZ;
+
+beforeAll(() => {
+  process.env.TZ = "America/New_York";
+});
+
+afterAll(() => {
+  if (originalTimezone === undefined) {
+    delete process.env.TZ;
+  } else {
+    process.env.TZ = originalTimezone;
+  }
+});
 
 beforeEach(() => {
   fetchMock = vi.fn();
@@ -109,6 +131,52 @@ afterEach(() => {
 });
 
 describe("SponsorCampaignForm defaults and validation", () => {
+  it("shows stored ISO schedules as Kuala Lumpur wall time outside Malaysia", () => {
+    expect(new Date("2026-08-25T08:00").toISOString()).toBe(
+      "2026-08-25T12:00:00.000Z"
+    );
+
+    render(<SponsorCampaignForm initialCampaign={initialCampaign} />);
+
+    expect(screen.getByLabelText("开始时间")).toHaveValue(
+      "2026-08-25T08:00"
+    );
+    expect(screen.getByLabelText("结束时间")).toHaveValue(
+      "2026-09-01T08:00"
+    );
+  });
+
+  it("submits Kuala Lumpur wall time as an exact ISO instant outside Malaysia", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ campaign: initialCampaign }, 201)
+    );
+    render(<SponsorCampaignForm />);
+    fillValidNewCampaign();
+
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toEqual(
+      expect.objectContaining({
+        startsAt: "2026-08-25T00:00:00.000Z",
+        endsAt: "2026-09-01T00:00:00.000Z",
+      })
+    );
+  });
+
+  it("rejects a non-minute Kuala Lumpur local time before saving", async () => {
+    render(<SponsorCampaignForm />);
+    fillValidNewCampaign({ startsAt: "2026-08-25T08:00:30" });
+
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+
+    expect(
+      await screen.findByText("请输入有效的开始时间。")
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("starts a new campaign as a draft with every placement off", () => {
     render(<SponsorCampaignForm />);
 
