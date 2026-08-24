@@ -232,10 +232,44 @@ export async function readBoundedJson(
     throw invalidInput();
   }
 
-  const body = await request.text();
+  const reader = request.body?.getReader();
 
-  if (new TextEncoder().encode(body).byteLength > maximumBytes) {
+  if (!reader) {
     throw invalidInput();
+  }
+
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let body = "";
+  let receivedBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      receivedBytes += value.byteLength;
+
+      if (receivedBytes > maximumBytes) {
+        await cancelBodyReader(reader);
+        throw invalidInput();
+      }
+
+      body += decoder.decode(value, { stream: true });
+    }
+
+    body += decoder.decode();
+  } catch (error) {
+    if (error instanceof SponsorAdminServiceError) {
+      throw error;
+    }
+
+    await cancelBodyReader(reader);
+    throw invalidInput();
+  } finally {
+    reader.releaseLock();
   }
 
   try {
@@ -301,7 +335,7 @@ export async function updateSponsorCampaign(
   );
 
   if (error) {
-    throw mapDatabaseError(error);
+    throw mapDatabaseError(error, { missingResource: "campaign" });
   }
 
   return mapCampaignRow(data);
@@ -424,13 +458,13 @@ export function parseSponsorStatsQuery(url: URL): {
     throw invalidStatsQuery();
   }
 
-  const campaignId = url.searchParams.get("campaignId") ?? undefined;
+  const campaignId = url.searchParams.get("campaignId");
 
-  if (campaignId && !uuidPattern.test(campaignId)) {
+  if (campaignId !== null && !uuidPattern.test(campaignId)) {
     throw invalidStatsQuery();
   }
 
-  return { range: rawRange, campaignId };
+  return { range: rawRange, campaignId: campaignId ?? undefined };
 }
 
 export function getSponsorStatsWindow(
@@ -637,10 +671,16 @@ function normalizeSettings(settings: SponsorSettings): SponsorSettings {
   };
 }
 
-function mapDatabaseError(error: unknown): SponsorAdminServiceError {
+function mapDatabaseError(
+  error: unknown,
+  options: { missingResource?: "campaign" } = {}
+): SponsorAdminServiceError {
   const code = isErrorLike(error) ? error.code : undefined;
 
-  if (code === "P0002" || code === "PGRST116") {
+  if (
+    (code === "P0002" && options.missingResource === "campaign") ||
+    code === "PGRST116"
+  ) {
     return notFound();
   }
 
@@ -664,6 +704,16 @@ function mapDatabaseError(error: unknown): SponsorAdminServiceError {
     500,
     "Sponsorship service failed."
   );
+}
+
+async function cancelBodyReader(
+  reader: ReadableStreamDefaultReader<Uint8Array>
+): Promise<void> {
+  try {
+    await reader.cancel();
+  } catch {
+    // The public response remains a sanitized invalid-input error.
+  }
 }
 
 function isErrorLike(value: unknown): value is SupabaseErrorLike {

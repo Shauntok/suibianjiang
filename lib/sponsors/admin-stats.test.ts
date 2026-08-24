@@ -100,11 +100,21 @@ describe("parseSponsorStatsQuery", () => {
     ["range=7d&extra=1", "unknown parameter"],
     ["range=7d&range=30d", "duplicate parameter"],
   ])("rejects %s as an %s", (query) => {
-    expect(() =>
+    let error: unknown;
+
+    try {
       parseSponsorStatsQuery(
         new URL(`https://ourlittleage.test/api/admin/sponsors/stats?${query}`)
-      )
-    ).toThrowError("Invalid sponsorship statistics query.");
+      );
+    } catch (reason) {
+      error = reason;
+    }
+
+    expect(error).toMatchObject({
+      kind: "invalid_input",
+      status: 400,
+      message: "Invalid sponsorship statistics query.",
+    });
   });
 });
 
