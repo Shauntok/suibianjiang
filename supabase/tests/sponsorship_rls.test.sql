@@ -183,18 +183,61 @@ select results_eq(
   $$
     select
       jsonb_typeof(placement_enabled) = 'object'
-      and jsonb_object_length(placement_enabled) = 8
-      and not exists (
-        select 1
-        from jsonb_each(placement_enabled) as item(key, value)
-        where jsonb_typeof(value) <> 'boolean'
-          or value <> 'false'::jsonb
-      )
+      and placement_enabled ?& array[
+        'home_wide',
+        'space_wide',
+        'article_inline',
+        'diary_inline',
+        'article_after',
+        'diary_after',
+        'desktop_left',
+        'desktop_right'
+      ]::text[]
+      and placement_enabled - array[
+        'home_wide',
+        'space_wide',
+        'article_inline',
+        'diary_inline',
+        'article_after',
+        'diary_after',
+        'desktop_left',
+        'desktop_right'
+      ]::text[] = '{}'::jsonb
+      and placement_enabled -> 'home_wide' = 'false'::jsonb
+      and placement_enabled -> 'space_wide' = 'false'::jsonb
+      and placement_enabled -> 'article_inline' = 'false'::jsonb
+      and placement_enabled -> 'diary_inline' = 'false'::jsonb
+      and placement_enabled -> 'article_after' = 'false'::jsonb
+      and placement_enabled -> 'diary_after' = 'false'::jsonb
+      and placement_enabled -> 'desktop_left' = 'false'::jsonb
+      and placement_enabled -> 'desktop_right' = 'false'::jsonb
     from public.sponsor_settings
     where id
   $$,
   $$ values (true) $$,
   'every seeded placement switch is false'
+);
+
+select lives_ok(
+  $$
+    update public.sponsor_settings
+    set placement_enabled = placement_enabled || '{"home_wide":true}'::jsonb
+    where id
+  $$,
+  'a placement switch can be enabled'
+);
+select results_eq(
+  $$ select placement_enabled -> 'home_wide' from public.sponsor_settings where id $$,
+  $$ values ('true'::jsonb) $$,
+  'enabled placement switch stores a JSON true value'
+);
+select lives_ok(
+  $$
+    update public.sponsor_settings
+    set placement_enabled = placement_enabled || '{"home_wide":false}'::jsonb
+    where id
+  $$,
+  'a placement switch can be disabled again'
 );
 
 select results_eq(

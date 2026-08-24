@@ -49,8 +49,7 @@ create table public.sponsor_settings (
   constraint sponsor_settings_placement_enabled_check check (
     case
       when jsonb_typeof(placement_enabled) = 'object' then
-        jsonb_object_length(placement_enabled) = 8
-        and placement_enabled ?& array[
+        placement_enabled ?& array[
           'home_wide',
           'space_wide',
           'article_inline',
@@ -59,7 +58,17 @@ create table public.sponsor_settings (
           'diary_after',
           'desktop_left',
           'desktop_right'
-        ]
+        ]::text[]
+        and placement_enabled - array[
+          'home_wide',
+          'space_wide',
+          'article_inline',
+          'diary_inline',
+          'article_after',
+          'diary_after',
+          'desktop_left',
+          'desktop_right'
+        ]::text[] = '{}'::jsonb
         and jsonb_typeof(placement_enabled -> 'home_wide') = 'boolean'
         and jsonb_typeof(placement_enabled -> 'space_wide') = 'boolean'
         and jsonb_typeof(placement_enabled -> 'article_inline') = 'boolean'
