@@ -7,7 +7,9 @@ import {
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   isSameOriginRequest,
+  readBoundedJson,
   SPONSOR_ADMIN_NO_STORE_HEADERS,
+  toSponsorApiError,
 } from "@/lib/sponsors/admin-service";
 import {
   createSponsorImagePath,
@@ -15,6 +17,7 @@ import {
   readBoundedMultipart,
   SponsorImagePolicyError,
   validateSponsorImage,
+  validateSponsorImagePath,
   validateSponsorUploadFields,
 } from "@/lib/sponsors/image-policy";
 
@@ -80,6 +83,49 @@ export async function POST(request: Request) {
   }
 }
 
+export async function DELETE(request: Request) {
+  try {
+    if (!isSameOriginRequest(request)) {
+      return json({ error: "Forbidden" }, 403);
+    }
+
+    const actor = await getAdminActor();
+
+    if (!actor) {
+      return json({ error: "Unauthorized" }, 401);
+    }
+
+    if (!canManageSponsors(actor.role)) {
+      return json({ error: "Forbidden" }, 403);
+    }
+
+    const path = readCleanupPath(await readBoundedJson(request));
+    const { error } = await supabaseAdmin.storage
+      .from("images")
+      .remove([path]);
+
+    if (error) {
+      throw new Error("Sponsor image Storage cleanup failed.");
+    }
+
+    return new NextResponse(null, {
+      status: 204,
+      headers: SPONSOR_ADMIN_NO_STORE_HEADERS,
+    });
+  } catch (error) {
+    if (error instanceof SponsorImagePolicyError) {
+      return json({ error: "Invalid sponsor image cleanup." }, error.status);
+    }
+
+    console.error("sponsor image deletion failed", error);
+    const response = toSponsorApiError(
+      error,
+      "Unable to delete sponsor image."
+    );
+    return json(response.body, response.status);
+  }
+}
+
 function readUploadForm(formData: FormData) {
   for (const key of formData.keys()) {
     if (!allowedFormFields.has(key)) {
@@ -107,6 +153,20 @@ function readUploadForm(formData: FormData) {
   }
 
   return { ...fields, file };
+}
+
+function readCleanupPath(input: unknown): string {
+  if (
+    typeof input !== "object" ||
+    input === null ||
+    Array.isArray(input) ||
+    Object.keys(input).length !== 1 ||
+    !("path" in input)
+  ) {
+    throw invalidUploadForm();
+  }
+
+  return validateSponsorImagePath(input.path);
 }
 
 async function removeUploadedObject(

@@ -83,7 +83,7 @@ describe("validateSponsorImage", () => {
   ] as const)(
     "accepts a byte-valid %s and derives the server extension",
     async (name, mediaType, bytes, extension) => {
-      const file = new File([bytes], name, { type: mediaType });
+      const file = fileFromBytes(bytes, name, mediaType);
 
       await expect(validateSponsorImage(file)).resolves.toEqual({
         extension,
@@ -97,65 +97,61 @@ describe("validateSponsorImage", () => {
   it.each([
     [
       "a PNG signature without chunks",
-      new File([pngBytes.slice(0, 8)], "signature-only.png", {
-        type: "image/png",
-      }),
+      fileFromBytes(
+        pngBytes.slice(0, 8),
+        "signature-only.png",
+        "image/png"
+      ),
     ],
     [
       "a PNG without its IEND chunk",
-      new File([pngBytes.slice(0, -12)], "missing-iend.png", {
-        type: "image/png",
-      }),
+      fileFromBytes(pngBytes.slice(0, -12), "missing-iend.png", "image/png"),
     ],
     [
       "a PNG chunk whose declared length overruns the file",
-      new File([pngWithOverrunningFirstChunk()], "overrun.png", {
-        type: "image/png",
-      }),
+      fileFromBytes(pngWithOverrunningFirstChunk(), "overrun.png", "image/png"),
     ],
     [
       "a JPEG signature without SOF dimensions or EOI",
-      new File(
-        [Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x00, 0x00])],
+      fileFromBytes(
+        Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x00, 0x00]),
         "signature-only.jpg",
-        { type: "image/jpeg" }
+        "image/jpeg"
       ),
     ],
     [
       "a JPEG with a truncated marker segment",
-      new File(
-        [
-          Uint8Array.from([
-            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x00, 0x00, 0xff, 0xd9,
-          ]),
-        ],
+      fileFromBytes(
+        Uint8Array.from([
+          0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x00, 0x00, 0xff, 0xd9,
+        ]),
         "truncated.jpg",
-        { type: "image/jpeg" }
+        "image/jpeg"
       ),
     ],
     [
       "a JPEG without EOI termination",
-      new File([jpegBytes.slice(0, -2)], "missing-eoi.jpg", {
-        type: "image/jpeg",
-      }),
+      fileFromBytes(jpegBytes.slice(0, -2), "missing-eoi.jpg", "image/jpeg"),
+    ],
+    [
+      "a JPEG whose scan precedes its frame dimensions",
+      fileFromBytes(jpegWithScanBeforeFrame(), "out-of-order.jpg", "image/jpeg"),
     ],
     [
       "a WebP whose RIFF size does not match the file",
-      new File([webPWithMismatchedRiffSize()], "bad-riff.webp", {
-        type: "image/webp",
-      }),
+      fileFromBytes(webPWithMismatchedRiffSize(), "bad-riff.webp", "image/webp"),
     ],
     [
       "a WebP without a recognized image chunk",
-      new File([createWebP("JUNK", new Uint8Array(4))], "unknown.webp", {
-        type: "image/webp",
-      }),
+      fileFromBytes(
+        createWebP("JUNK", new Uint8Array(4)),
+        "unknown.webp",
+        "image/webp"
+      ),
     ],
     [
       "a WebP chunk whose declared length overruns the RIFF payload",
-      new File([webPWithOverrunningChunk()], "overrun.webp", {
-        type: "image/webp",
-      }),
+      fileFromBytes(webPWithOverrunningChunk(), "overrun.webp", "image/webp"),
     ],
   ])("rejects structurally malformed %s", async (_label, file) => {
     await expect(validateSponsorImage(file)).rejects.toMatchObject({
@@ -185,31 +181,27 @@ describe("validateSponsorImage", () => {
     ],
     [
       "unknown MIME types",
-      new File([pngBytes], "photo.bin", {
-        type: "application/octet-stream",
-      }),
+      fileFromBytes(pngBytes, "photo.bin", "application/octet-stream"),
       400,
     ],
     [
       "MIME and signature mismatches",
-      new File([jpegBytes], "photo.png", { type: "image/png" }),
+      fileFromBytes(jpegBytes, "photo.png", "image/png"),
       400,
     ],
     [
       "filename extension and media mismatches",
-      new File([pngBytes], "photo.jpg", { type: "image/png" }),
+      fileFromBytes(pngBytes, "photo.jpg", "image/png"),
       400,
     ],
     [
       "truncated PNG signatures",
-      new File([pngBytes.slice(0, 7)], "photo.png", { type: "image/png" }),
+      fileFromBytes(pngBytes.slice(0, 7), "photo.png", "image/png"),
       400,
     ],
     [
       "truncated WebP signatures",
-      new File([webpBytes.slice(0, 11)], "photo.webp", {
-        type: "image/webp",
-      }),
+      fileFromBytes(webpBytes.slice(0, 11), "photo.webp", "image/webp"),
       400,
     ],
   ])("rejects %s", async (_label, file, status) => {
@@ -221,9 +213,11 @@ describe("validateSponsorImage", () => {
 
   it("accepts a structurally valid PNG of exactly 5 MiB", async () => {
     const exactLimitPng = createExactSizePng(SPONSOR_IMAGE_MAX_BYTES);
-    const file = new File([exactLimitPng], "exact-limit.png", {
-      type: "image/png",
-    });
+    const file = fileFromBytes(
+      exactLimitPng,
+      "exact-limit.png",
+      "image/png"
+    );
 
     await expect(validateSponsorImage(file)).resolves.toMatchObject({
       extension: "png",
@@ -233,10 +227,10 @@ describe("validateSponsorImage", () => {
   });
 
   it("rejects a structurally valid file one byte over 5 MiB", async () => {
-    const file = new File(
-      [createExactSizePng(SPONSOR_IMAGE_MAX_BYTES + 1)],
+    const file = fileFromBytes(
+      createExactSizePng(SPONSOR_IMAGE_MAX_BYTES + 1),
       "too-large.png",
-      { type: "image/png" }
+      "image/png"
     );
 
     await expect(validateSponsorImage(file)).rejects.toMatchObject({
@@ -561,6 +555,16 @@ function cleanupRequest(
   });
 }
 
+function fileFromBytes(
+  bytes: Uint8Array,
+  name: string,
+  mediaType: string
+): File {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return new File([copy.buffer], name, { type: mediaType });
+}
+
 async function callDelete(request: Request): Promise<Response> {
   if (!DELETE) {
     throw new Error("DELETE sponsor image handler is missing");
@@ -675,6 +679,17 @@ function createJpeg(): Uint8Array {
     0x01, 0x01, 0x11, 0x00,
     0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00,
     0x00,
+    0xff, 0xd9,
+  ]);
+}
+
+function jpegWithScanBeforeFrame(): Uint8Array {
+  return Uint8Array.from([
+    0xff, 0xd8,
+    0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00,
+    0x00,
+    0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x01, 0x00, 0x01,
+    0x01, 0x01, 0x11, 0x00,
     0xff, 0xd9,
   ]);
 }
