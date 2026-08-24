@@ -1,16 +1,30 @@
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deflateSync } from "node:zlib";
 
-import { POST } from "@/app/api/admin/sponsors/upload/route";
-import {
+import * as uploadRoute from "@/app/api/admin/sponsors/upload/route";
+import * as imagePolicy from "@/lib/sponsors/image-policy";
+
+const { POST } = uploadRoute;
+const DELETE = (
+  uploadRoute as unknown as {
+    DELETE?: (request: Request) => Promise<Response>;
+  }
+).DELETE;
+const {
   createSponsorImagePath,
   readBoundedMultipart,
   SPONSOR_IMAGE_MAX_BYTES,
   SPONSOR_UPLOAD_REQUEST_LIMIT,
   validateSponsorImage,
   validateSponsorUploadFields,
-} from "@/lib/sponsors/image-policy";
+} = imagePolicy;
+const validateSponsorImagePath = (
+  imagePolicy as unknown as {
+    validateSponsorImagePath?: (value: unknown) => string;
+  }
+).validateSponsorImagePath;
 
 const authMocks = vi.hoisted(() => ({
   canManageSponsors: vi.fn((role: unknown) =>
@@ -36,16 +50,12 @@ vi.mock("@/lib/supabase-admin", () => ({
 }));
 
 const campaignId = "c0000000-0000-4000-8000-000000000001";
-const pngBytes = Uint8Array.from([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
-]);
-const jpegBytes = Uint8Array.from([
-  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x00, 0xff, 0xd9,
-]);
-const webpBytes = Uint8Array.from([
-  0x52, 0x49, 0x46, 0x46, 0x08, 0x00, 0x00, 0x00,
-  0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20,
-]);
+const pngBytes = createPng();
+const jpegBytes = createJpeg();
+const webpBytes = createWebP("VP8X", new Uint8Array(10));
+const generatedImageId = "90000000-0000-4000-8000-000000000002";
+const validSponsorPath =
+  `sponsors/${campaignId}/article_inline/${generatedImageId}.png`;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -83,6 +93,76 @@ describe("validateSponsorImage", () => {
       });
     }
   );
+
+  it.each([
+    [
+      "a PNG signature without chunks",
+      new File([pngBytes.slice(0, 8)], "signature-only.png", {
+        type: "image/png",
+      }),
+    ],
+    [
+      "a PNG without its IEND chunk",
+      new File([pngBytes.slice(0, -12)], "missing-iend.png", {
+        type: "image/png",
+      }),
+    ],
+    [
+      "a PNG chunk whose declared length overruns the file",
+      new File([pngWithOverrunningFirstChunk()], "overrun.png", {
+        type: "image/png",
+      }),
+    ],
+    [
+      "a JPEG signature without SOF dimensions or EOI",
+      new File(
+        [Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x00, 0x00])],
+        "signature-only.jpg",
+        { type: "image/jpeg" }
+      ),
+    ],
+    [
+      "a JPEG with a truncated marker segment",
+      new File(
+        [
+          Uint8Array.from([
+            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x00, 0x00, 0xff, 0xd9,
+          ]),
+        ],
+        "truncated.jpg",
+        { type: "image/jpeg" }
+      ),
+    ],
+    [
+      "a JPEG without EOI termination",
+      new File([jpegBytes.slice(0, -2)], "missing-eoi.jpg", {
+        type: "image/jpeg",
+      }),
+    ],
+    [
+      "a WebP whose RIFF size does not match the file",
+      new File([webPWithMismatchedRiffSize()], "bad-riff.webp", {
+        type: "image/webp",
+      }),
+    ],
+    [
+      "a WebP without a recognized image chunk",
+      new File([createWebP("JUNK", new Uint8Array(4))], "unknown.webp", {
+        type: "image/webp",
+      }),
+    ],
+    [
+      "a WebP chunk whose declared length overruns the RIFF payload",
+      new File([webPWithOverrunningChunk()], "overrun.webp", {
+        type: "image/webp",
+      }),
+    ],
+  ])("rejects structurally malformed %s", async (_label, file) => {
+    await expect(validateSponsorImage(file)).rejects.toMatchObject({
+      name: "SponsorImagePolicyError",
+      status: 400,
+    });
+  });
 
   it.each([
     ["empty files", new File([], "empty.png", { type: "image/png" }), 400],
@@ -139,9 +219,22 @@ describe("validateSponsorImage", () => {
     });
   });
 
-  it("rejects a file one byte over 5 MiB", async () => {
+  it("accepts a structurally valid PNG of exactly 5 MiB", async () => {
+    const exactLimitPng = createExactSizePng(SPONSOR_IMAGE_MAX_BYTES);
+    const file = new File([exactLimitPng], "exact-limit.png", {
+      type: "image/png",
+    });
+
+    await expect(validateSponsorImage(file)).resolves.toMatchObject({
+      extension: "png",
+      mediaType: "image/png",
+      size: SPONSOR_IMAGE_MAX_BYTES,
+    });
+  });
+
+  it("rejects a structurally valid file one byte over 5 MiB", async () => {
     const file = new File(
-      [pngBytes, new Uint8Array(SPONSOR_IMAGE_MAX_BYTES + 1 - pngBytes.length)],
+      [createExactSizePng(SPONSOR_IMAGE_MAX_BYTES + 1)],
       "too-large.png",
       { type: "image/png" }
     );
@@ -175,9 +268,63 @@ describe("sponsor upload field and path policy", () => {
     );
     expect(path).not.toContain("resident-image");
   });
+
+  it("accepts only the exact server-generated sponsor object shape", () => {
+    expect(validateCleanupPath(validSponsorPath)).toBe(validSponsorPath);
+
+    for (const invalidPath of [
+      `avatars/${campaignId}/article_inline/${generatedImageId}.png`,
+      `sponsors/${campaignId}/unknown/${generatedImageId}.png`,
+      `sponsors/${campaignId}/article_inline/resident-image.png`,
+      `sponsors/${campaignId}/article_inline/${generatedImageId}.gif`,
+      `sponsors/${campaignId}/article_inline/${generatedImageId}.PNG`,
+      `sponsors/${campaignId}/article_inline/${generatedImageId}.png/extra`,
+      `sponsors/${campaignId}/article_inline/${generatedImageId}.png?x=1`,
+      `sponsors/not-a-uuid/article_inline/${generatedImageId}.png`,
+    ]) {
+      expect(() => validateCleanupPath(invalidPath)).toThrowError(
+        expect.objectContaining({ status: 400 })
+      );
+    }
+  });
 });
 
 describe("readBoundedMultipart", () => {
+  it("accepts an exact 5 MiB file with bounded multipart overhead", async () => {
+    const exactLimitPng = createExactSizePng(SPONSOR_IMAGE_MAX_BYTES);
+    const request = streamingUploadRequest(exactLimitPng);
+
+    const formData = await readBoundedMultipart(request);
+    const file = formData.get("file");
+
+    expect(file).toBeInstanceOf(File);
+    expect((file as File).size).toBe(SPONSOR_IMAGE_MAX_BYTES);
+  });
+
+  it("accepts a multipart request at the total limit", async () => {
+    const { request, paddingLength } = paddingMultipartRequest(
+      SPONSOR_UPLOAD_REQUEST_LIMIT
+    );
+
+    const formData = await readBoundedMultipart(request);
+
+    expect(formData.get("padding")).toBe("x".repeat(paddingLength));
+  });
+
+  it("rejects and cancels a multipart request one byte over the total limit", async () => {
+    const cancel = vi.fn();
+    const { request } = paddingMultipartRequest(
+      SPONSOR_UPLOAD_REQUEST_LIMIT + 1,
+      cancel
+    );
+
+    await expect(readBoundedMultipart(request)).rejects.toMatchObject({
+      name: "SponsorImagePolicyError",
+      status: 413,
+    });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("cancels the body as soon as the total request crosses the bound", async () => {
     const cancel = vi.fn();
     const chunks = [new Uint8Array(6), new Uint8Array(6), new Uint8Array(6)];
@@ -296,6 +443,72 @@ describe("POST /api/admin/sponsors/upload", () => {
   });
 });
 
+describe("DELETE /api/admin/sponsors/upload", () => {
+  it("rejects cross-origin cleanup before authentication or body reads", async () => {
+    const request = cleanupRequest(validSponsorPath, {
+      origin: "https://attacker.test",
+    });
+
+    const response = await callDelete(request);
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(authMocks.getAdminActor).not.toHaveBeenCalled();
+    expect(request.bodyUsed).toBe(false);
+  });
+
+  it("authenticates and authorizes before reading the cleanup body", async () => {
+    authMocks.getAdminActor.mockResolvedValue({
+      id: "moderator-1",
+      role: "moderator",
+    });
+    const request = cleanupRequest(validSponsorPath);
+
+    const response = await callDelete(request);
+
+    expect(response.status).toBe(403);
+    expect(request.bodyUsed).toBe(false);
+    expect(storageMocks.remove).not.toHaveBeenCalled();
+  });
+
+  it("removes exactly one validated sponsor object", async () => {
+    const response = await callDelete(cleanupRequest(validSponsorPath));
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(storageMocks.from).toHaveBeenCalledWith("images");
+    expect(storageMocks.remove).toHaveBeenCalledOnce();
+    expect(storageMocks.remove).toHaveBeenCalledWith([validSponsorPath]);
+  });
+
+  it("rejects resident and arbitrary paths without touching Storage", async () => {
+    const response = await callDelete(
+      cleanupRequest(`resident/${campaignId}/avatar.png`)
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(storageMocks.remove).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes Storage cleanup failures", async () => {
+    storageMocks.remove.mockResolvedValueOnce({
+      data: null,
+      error: { message: "private bucket internals" },
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await callDelete(cleanupRequest(validSponsorPath));
+
+    expect(response.status).toBe(500);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    await expect(response.json()).resolves.toEqual({
+      error: "Unable to delete sponsor image.",
+    });
+    consoleError.mockRestore();
+  });
+});
+
 function streamingUploadRequest(
   fileBytes: Uint8Array,
   options: {
@@ -332,6 +545,192 @@ function streamingUploadRequest(
     body: streamBody([prefix, fileBytes, suffix]),
     duplex: "half",
   } as RequestInit & { duplex: "half" });
+}
+
+function cleanupRequest(
+  path: string,
+  options: { origin?: string } = {}
+): Request {
+  return new Request("https://ourlittleage.test/api/admin/sponsors/upload", {
+    method: "DELETE",
+    headers: {
+      "content-type": "application/json",
+      origin: options.origin ?? "https://ourlittleage.test",
+    },
+    body: JSON.stringify({ path }),
+  });
+}
+
+async function callDelete(request: Request): Promise<Response> {
+  if (!DELETE) {
+    throw new Error("DELETE sponsor image handler is missing");
+  }
+
+  return DELETE(request);
+}
+
+function validateCleanupPath(value: unknown): string {
+  if (!validateSponsorImagePath) {
+    throw new Error("validateSponsorImagePath is missing");
+  }
+
+  return validateSponsorImagePath(value);
+}
+
+function paddingMultipartRequest(
+  totalBytes: number,
+  cancel?: (reason?: unknown) => void
+): { request: Request; paddingLength: number } {
+  const boundary = "sponsor-overhead-boundary";
+  const encoder = new TextEncoder();
+  const prefix = encoder.encode(
+    `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="padding"\r\n\r\n`
+  );
+  const suffix = encoder.encode(`\r\n--${boundary}--\r\n`);
+  const paddingLength = totalBytes - prefix.byteLength - suffix.byteLength;
+
+  if (paddingLength < 0) {
+    throw new Error("Multipart fixture total is too small");
+  }
+
+  const request = new Request(
+    "https://ourlittleage.test/api/admin/sponsors/upload",
+    {
+      method: "POST",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body: streamBody(
+        [prefix, encoder.encode("x".repeat(paddingLength)), suffix],
+        cancel
+      ),
+      duplex: "half",
+    } as RequestInit & { duplex: "half" }
+  );
+
+  return { request, paddingLength };
+}
+
+function createPng(ancillaryDataLength?: number): Uint8Array {
+  const signature = Uint8Array.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+  ]);
+  const ihdr = pngChunk(
+    "IHDR",
+    Uint8Array.from([
+      0x00, 0x00, 0x00, 0x01,
+      0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00, 0x00,
+    ])
+  );
+  const idat = pngChunk(
+    "IDAT",
+    new Uint8Array(deflateSync(Uint8Array.from([0, 0, 0, 0, 0])))
+  );
+  const iend = pngChunk("IEND", new Uint8Array());
+  const chunks = [signature, ihdr];
+
+  if (ancillaryDataLength !== undefined) {
+    chunks.push(pngChunk("ruSt", new Uint8Array(ancillaryDataLength)));
+  }
+
+  chunks.push(idat, iend);
+  return concatenate(chunks);
+}
+
+function createExactSizePng(targetBytes: number): Uint8Array {
+  const base = createPng();
+  const ancillaryDataLength = targetBytes - base.byteLength - 12;
+
+  if (ancillaryDataLength < 0) {
+    throw new Error("PNG fixture target is too small");
+  }
+
+  return createPng(ancillaryDataLength);
+}
+
+function pngChunk(type: string, data: Uint8Array): Uint8Array {
+  const typeBytes = new TextEncoder().encode(type);
+  const chunk = new Uint8Array(12 + data.byteLength);
+  const view = new DataView(chunk.buffer);
+  view.setUint32(0, data.byteLength);
+  chunk.set(typeBytes, 4);
+  chunk.set(data, 8);
+  view.setUint32(8 + data.byteLength, crc32(concatenate([typeBytes, data])));
+  return chunk;
+}
+
+function pngWithOverrunningFirstChunk(): Uint8Array {
+  const malformed = pngBytes.slice();
+  new DataView(malformed.buffer).setUint32(8, 0x7fffffff);
+  return malformed;
+}
+
+function createJpeg(): Uint8Array {
+  return Uint8Array.from([
+    0xff, 0xd8,
+    0xff, 0xe0, 0x00, 0x04, 0x00, 0x00,
+    0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x01, 0x00, 0x01,
+    0x01, 0x01, 0x11, 0x00,
+    0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00,
+    0x00,
+    0xff, 0xd9,
+  ]);
+}
+
+function createWebP(chunkType: string, chunkData: Uint8Array): Uint8Array {
+  const paddedLength = chunkData.byteLength + (chunkData.byteLength % 2);
+  const bytes = new Uint8Array(12 + 8 + paddedLength);
+  const view = new DataView(bytes.buffer);
+  bytes.set(new TextEncoder().encode("RIFF"), 0);
+  view.setUint32(4, bytes.byteLength - 8, true);
+  bytes.set(new TextEncoder().encode("WEBP"), 8);
+  bytes.set(new TextEncoder().encode(chunkType), 12);
+  view.setUint32(16, chunkData.byteLength, true);
+  bytes.set(chunkData, 20);
+  return bytes;
+}
+
+function webPWithMismatchedRiffSize(): Uint8Array {
+  const malformed = webpBytes.slice();
+  const view = new DataView(malformed.buffer);
+  view.setUint32(4, view.getUint32(4, true) + 2, true);
+  return malformed;
+}
+
+function webPWithOverrunningChunk(): Uint8Array {
+  const malformed = webpBytes.slice();
+  new DataView(malformed.buffer).setUint32(16, malformed.byteLength, true);
+  return malformed;
+}
+
+function concatenate(parts: Uint8Array[]): Uint8Array {
+  const result = new Uint8Array(
+    parts.reduce((total, part) => total + part.byteLength, 0)
+  );
+  let offset = 0;
+
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.byteLength;
+  }
+
+  return result;
+}
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+
+  for (const byte of bytes) {
+    crc ^= byte;
+
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 function streamBody(
