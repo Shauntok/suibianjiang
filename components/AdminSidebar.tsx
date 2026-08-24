@@ -3,16 +3,19 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Handshake } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 type AdminLink = {
   href: string;
   label: string;
-  icon: string;
+  icon: ReactNode;
   badge?: number;
 };
+
+type AdminWindow = Window & { adminHasUnsavedChanges?: boolean };
 
 export default function AdminSidebar() {
   const pathname = usePathname();
@@ -106,6 +109,14 @@ export default function AdminSidebar() {
     { href: "/admin/broadcast", label: "全站信件", icon: "📬" },
   ];
 
+  const sponsorLinks: AdminLink[] = [
+    {
+      href: "/admin/sponsors",
+      label: "业配中心",
+      icon: <Handshake aria-hidden="true" className="h-4 w-4" />,
+    },
+  ];
+
   const growthLinks: AdminLink[] = [
     { href: "/admin/badges", label: "徽章管理", icon: "🎖️" },
     { href: "/admin/growth", label: "成长记录", icon: "✨" },
@@ -130,7 +141,7 @@ export default function AdminSidebar() {
     e: React.MouseEvent<HTMLAnchorElement>,
     href: string
   ) {
-    if (!(window as any).adminHasUnsavedChanges) {
+    if (!(window as AdminWindow).adminHasUnsavedChanges) {
       setMobileOpen(false);
       return;
     }
@@ -146,7 +157,7 @@ export default function AdminSidebar() {
       return;
     }
 
-    (window as any).adminHasUnsavedChanges = false;
+    (window as AdminWindow).adminHasUnsavedChanges = false;
 
     setShowLeaveDialog(false);
     setMobileOpen(false);
@@ -250,6 +261,7 @@ export default function AdminSidebar() {
           {renderSection("总览", overviewLinks)}
           {isModerator && renderSection("社区", communityLinks)}
           {isModerator && renderSection("内容", contentLinks)}
+          {isAdmin && renderSection("商业合作", sponsorLinks)}
           {isAdmin && renderSection("成长", growthLinks)}
           {isOwner && renderSection("Owner", ownerLinks)}
           {renderSection("系统", systemLinks)}
@@ -266,6 +278,7 @@ export default function AdminSidebar() {
             {renderSection("总览", overviewLinks)}
             {isModerator && renderSection("社区", communityLinks)}
             {isModerator && renderSection("内容", contentLinks)}
+            {isAdmin && renderSection("商业合作", sponsorLinks)}
             {isAdmin && renderSection("成长", growthLinks)}
             {isOwner && renderSection("Owner", ownerLinks)}
             {renderSection("系统", systemLinks)}
