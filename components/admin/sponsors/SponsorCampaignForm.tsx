@@ -81,6 +81,11 @@ const stateLabels: Record<CampaignState, string> = {
   archived: "归档",
 };
 
+const KUALA_LUMPUR_OFFSET_MS = 8 * 60 * 60 * 1000;
+const DATETIME_LOCAL_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+const EXPLICIT_ZONE_PATTERN = /(?:Z|[+-]\d{2}:\d{2})$/i;
+
 export default function SponsorCampaignForm({
   campaignId,
   initialCampaign,
@@ -286,18 +291,18 @@ export default function SponsorCampaignForm({
       nextErrors.destinationUrl = "目标网址只允许使用 http 或 https。";
     }
 
-    const startsAt = new Date(fields.startsAt);
-    const endsAt = new Date(fields.endsAt);
+    const startsAt = parseKualaLumpurDatetimeLocal(fields.startsAt);
+    const endsAt = parseKualaLumpurDatetimeLocal(fields.endsAt);
 
-    if (fields.startsAt && Number.isNaN(startsAt.getTime())) {
+    if (fields.startsAt && startsAt === null) {
       nextErrors.startsAt = "请输入有效的开始时间。";
     }
 
-    if (fields.endsAt && Number.isNaN(endsAt.getTime())) {
+    if (fields.endsAt && endsAt === null) {
       nextErrors.endsAt = "请输入有效的结束时间。";
     } else if (
-      !Number.isNaN(startsAt.getTime()) &&
-      !Number.isNaN(endsAt.getTime()) &&
+      startsAt !== null &&
+      endsAt !== null &&
       endsAt <= startsAt
     ) {
       nextErrors.endsAt = "结束时间必须晚于开始时间。";
@@ -330,6 +335,13 @@ export default function SponsorCampaignForm({
   function buildCampaignInput(
     savedImagePaths: Map<SponsorPlacement, string> = new Map()
   ): CampaignInput {
+    const startsAt = toKualaLumpurIso(fields.startsAt);
+    const endsAt = toKualaLumpurIso(fields.endsAt);
+
+    if (!startsAt || !endsAt) {
+      throw new Error("排期时间无效，请检查后重试。");
+    }
+
     const placementInput: SponsorCampaignPlacement[] = placements.flatMap(
       (placement) => {
         const imagePath =
@@ -355,8 +367,8 @@ export default function SponsorCampaignForm({
       description: fields.description.trim(),
       destinationUrl: fields.destinationUrl.trim(),
       state: isNew && !resolvedCampaignId ? "draft" : fields.state,
-      startsAt: new Date(fields.startsAt).toISOString(),
-      endsAt: new Date(fields.endsAt).toISOString(),
+      startsAt,
+      endsAt,
       weight: Number(fields.weight),
       placements: placementInput,
     };
@@ -977,8 +989,8 @@ function fieldsFromCampaign(campaign?: SponsorCampaign): CampaignFields {
     description: campaign?.description ?? "",
     destinationUrl: campaign?.destinationUrl ?? "",
     state: campaign?.state ?? "draft",
-    startsAt: toDatetimeLocal(campaign?.startsAt),
-    endsAt: toDatetimeLocal(campaign?.endsAt),
+    startsAt: toKualaLumpurDatetimeLocal(campaign?.startsAt),
+    endsAt: toKualaLumpurDatetimeLocal(campaign?.endsAt),
     weight: String(campaign?.weight ?? 100),
   };
 }
@@ -1000,14 +1012,60 @@ function placementsFromCampaign(campaign?: SponsorCampaign): PlacementDraft[] {
   });
 }
 
-function toDatetimeLocal(value?: string) {
-  if (!value) return "";
+function toKualaLumpurDatetimeLocal(value?: string) {
+  if (!value || !EXPLICIT_ZONE_PATTERN.test(value)) return "";
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "";
 
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  return new Date(timestamp + KUALA_LUMPUR_OFFSET_MS)
+    .toISOString()
+    .slice(0, 16);
+}
+
+function toKualaLumpurIso(value: string) {
+  const timestamp = parseKualaLumpurDatetimeLocal(value);
+  return timestamp === null ? "" : new Date(timestamp).toISOString();
+}
+
+function parseKualaLumpurDatetimeLocal(value: string) {
+  const match = DATETIME_LOCAL_PATTERN.exec(value);
+  if (!match) return null;
+
+  const [, yearValue, monthValue, dayValue, hourValue, minuteValue] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+
+  if (
+    year < 1 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour > 23 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  const wallTime = new Date(0);
+  wallTime.setUTCFullYear(year, month - 1, day);
+  wallTime.setUTCHours(hour, minute, 0, 0);
+
+  if (
+    wallTime.getUTCFullYear() !== year ||
+    wallTime.getUTCMonth() !== month - 1 ||
+    wallTime.getUTCDate() !== day ||
+    wallTime.getUTCHours() !== hour ||
+    wallTime.getUTCMinutes() !== minute
+  ) {
+    return null;
+  }
+
+  return wallTime.getTime() - KUALA_LUMPUR_OFFSET_MS;
 }
 
 function createPreview(file: File) {
