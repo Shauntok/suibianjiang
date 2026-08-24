@@ -116,23 +116,21 @@ select results_eq(
   'RLS is enabled on every public sponsorship table'
 );
 
-select results_eq(
-  $$
-    select column_name::text
+select is(
+  (
+    select jsonb_agg(column_name::text order by ordinal_position)
     from information_schema.columns
     where table_schema = 'private'
       and table_name = 'sponsor_metric_tokens'
-    order by ordinal_position
-  $$,
-  $$
-    values
-      ('token_hash'::text),
-      ('campaign_id'::text),
-      ('placement'::text),
-      ('expires_at'::text),
-      ('impression_counted'::text),
-      ('click_counted'::text)
-  $$,
+  ),
+  '[
+    "token_hash",
+    "campaign_id",
+    "placement",
+    "expires_at",
+    "impression_counted",
+    "click_counted"
+  ]'::jsonb,
   'private metric tokens contain only aggregate-token fields'
 );
 
@@ -161,9 +159,9 @@ select has_index(
   'metric token expiry index exists'
 );
 
-select results_eq(
-  $$
-    select
+select is(
+  (
+    select jsonb_build_array(
       commercial_enabled,
       minimum_paragraphs,
       minimum_characters,
@@ -172,10 +170,11 @@ select results_eq(
       cooldown_page_views,
       max_ad_pages_per_ten,
       timezone
+    )
     from public.sponsor_settings
     where id
-  $$,
-  $$ values (false, 8, 1200, 2, 60, 2, 4, 'Asia/Kuala_Lumpur'::text) $$,
+  ),
+  '[false, 8, 1200, 2, 60, 2, 4, "Asia/Kuala_Lumpur"]'::jsonb,
   'sponsor singleton uses the approved safe defaults'
 );
 
@@ -240,20 +239,18 @@ select lives_ok(
   'a placement switch can be disabled again'
 );
 
-select results_eq(
-  $$ select placement_priority from public.sponsor_settings where id $$,
-  $$
-    values (array[
-      'article_inline',
-      'diary_inline',
-      'article_after',
-      'diary_after',
-      'desktop_left',
-      'desktop_right',
-      'home_wide',
-      'space_wide'
-    ]::text[])
-  $$,
+select is(
+  (select to_jsonb(placement_priority) from public.sponsor_settings where id),
+  '[
+    "article_inline",
+    "diary_inline",
+    "article_after",
+    "diary_after",
+    "desktop_left",
+    "desktop_right",
+    "home_wide",
+    "space_wide"
+  ]'::jsonb,
   'placement priority uses the approved complete ordering'
 );
 
@@ -893,23 +890,26 @@ select lives_ok(
   $$,
   'owner policy allows campaign creation'
 );
-select results_eq(
-  $$
-    update public.sponsor_campaigns
-    set state = 'paused', updated_by = auth.uid()
-    where id = 'c0000000-0000-0000-0000-000000000010'
-    returning state
-  $$,
-  $$ values ('paused'::text) $$,
+select is(
+  (
+    with updated as (
+      update public.sponsor_campaigns
+      set state = 'paused', updated_by = auth.uid()
+      where id = 'c0000000-0000-0000-0000-000000000010'
+      returning state
+    )
+    select to_jsonb(state) from updated
+  ),
+  '"paused"'::jsonb,
   'owner policy allows campaign updates'
 );
-select results_eq(
-  $$
-    select internal_name
+select is(
+  (
+    select to_jsonb(internal_name)
     from public.sponsor_campaigns
     where id = 'c0000000-0000-0000-0000-000000000010'
-  $$,
-  $$ values ('owner campaign'::text) $$,
+  ),
+  '"owner campaign"'::jsonb,
   'owner policy allows campaign reads'
 );
 select lives_ok(
@@ -992,23 +992,26 @@ select lives_ok(
   $$,
   'admin policy allows campaign creation'
 );
-select results_eq(
-  $$
-    update public.sponsor_campaigns
-    set state = 'published', updated_by = auth.uid()
-    where id = 'c0000000-0000-0000-0000-000000000020'
-    returning state
-  $$,
-  $$ values ('published'::text) $$,
+select is(
+  (
+    with updated as (
+      update public.sponsor_campaigns
+      set state = 'published', updated_by = auth.uid()
+      where id = 'c0000000-0000-0000-0000-000000000020'
+      returning state
+    )
+    select to_jsonb(state) from updated
+  ),
+  '"published"'::jsonb,
   'admin policy allows campaign updates'
 );
-select results_eq(
-  $$
-    select internal_name
+select is(
+  (
+    select to_jsonb(internal_name)
     from public.sponsor_campaigns
     where id = 'c0000000-0000-0000-0000-000000000020'
-  $$,
-  $$ values ('admin campaign'::text) $$,
+  ),
+  '"admin campaign"'::jsonb,
   'admin policy allows campaign reads'
 );
 select lives_ok(
@@ -1119,14 +1122,17 @@ select results_eq(
   $$ values (0::bigint) $$,
   'migration does not create a sponsors bucket'
 );
-select results_eq(
-  $$ select id::text from storage.buckets where id = 'images' and public $$,
-  $$ values ('images'::text) $$,
+select is(
+  (select to_jsonb(id::text) from storage.buckets where id = 'images' and public),
+  '"images"'::jsonb,
   'existing public images bucket remains in use'
 );
-select results_eq(
-  $$
-    select policyname::text
+select is(
+  (
+    select jsonb_agg(
+      policyname::text
+      order by policyname::text collate "C"
+    )
     from pg_catalog.pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'
@@ -1135,19 +1141,20 @@ select results_eq(
         'Users can update own media',
         'Users can delete own media'
       )
-    order by policyname
-  $$,
-  $$
-    values
-      ('Users can delete own media'::text),
-      ('Users can update own media'::text),
-      ('Users can upload own media'::text)
-  $$,
+  ),
+  '[
+    "Users can delete own media",
+    "Users can update own media",
+    "Users can upload own media"
+  ]'::jsonb,
   'resident own-media storage policies remain untouched'
 );
-select results_eq(
-  $$
-    select policyname::text
+select is(
+  (
+    select jsonb_agg(
+      policyname::text
+      order by policyname::text collate "C"
+    )
     from pg_catalog.pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'
@@ -1156,14 +1163,12 @@ select results_eq(
         'Owners and admins can update sponsor images',
         'Owners and admins can delete sponsor images'
       )
-    order by policyname
-  $$,
-  $$
-    values
-      ('Owners and admins can delete sponsor images'::text),
-      ('Owners and admins can update sponsor images'::text),
-      ('Owners and admins can upload sponsor images'::text)
-  $$,
+  ),
+  '[
+    "Owners and admins can delete sponsor images",
+    "Owners and admins can update sponsor images",
+    "Owners and admins can upload sponsor images"
+  ]'::jsonb,
   'only the three sponsor write policy operations are added'
 );
 
