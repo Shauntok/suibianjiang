@@ -65,6 +65,31 @@ function rpcClient(result: { data: unknown; error: unknown }) {
   };
 }
 
+function streamingRequest(
+  chunks: Uint8Array[],
+  cancel?: (reason?: unknown) => void
+) {
+  const pendingChunks = [...chunks];
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const chunk = pendingChunks.shift();
+
+      if (chunk) {
+        controller.enqueue(chunk);
+      } else {
+        controller.close();
+      }
+    },
+    cancel,
+  });
+
+  return new Request("https://ourlittleage.test/api/admin/sponsors", {
+    method: "POST",
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
 describe("deriveCampaignDisplayStatus", () => {
   const startsAt = "2026-08-25T00:00:00.000Z";
   const endsAt = "2026-09-01T00:00:00.000Z";
@@ -196,6 +221,38 @@ describe("transactional sponsor mutation services", () => {
       }
     );
   });
+
+  it("keeps a missing settings singleton as a sanitized internal failure", async () => {
+    const client = rpcClient({
+      data: null,
+      error: {
+        code: "P0002",
+        message: "Sponsor settings not found in private schema details",
+      },
+    });
+
+    const error: unknown = await updateSponsorSettings(
+      actorId,
+      validSettings,
+      client
+    ).then(
+      () => null,
+      (reason: unknown) => reason
+    );
+
+    expect(error).toMatchObject({
+      name: "SponsorAdminServiceError",
+      kind: "internal",
+      status: 500,
+      message: "Sponsorship service failed.",
+    });
+    expect(
+      toSponsorApiError(error, "Unable to save sponsorship settings.")
+    ).toEqual({
+      status: 500,
+      body: { error: "Unable to save sponsorship settings." },
+    });
+  });
 });
 
 describe("bounded and sanitized API helpers", () => {
@@ -225,6 +282,40 @@ describe("bounded and sanitized API helpers", () => {
       kind: "invalid_input",
       status: 400,
     });
+  });
+
+  it("cancels a multi-chunk body as soon as its bytes cross the limit", async () => {
+    const encoder = new TextEncoder();
+    const cancel = vi.fn();
+    const request = streamingRequest(
+      [
+        encoder.encode('{"value":"'),
+        encoder.encode("1234567890"),
+        encoder.encode('"}'),
+      ],
+      cancel
+    );
+
+    await expect(readBoundedJson(request, 12)).rejects.toMatchObject({
+      kind: "invalid_input",
+      status: 400,
+    });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("decodes a UTF-8 character split across body chunks", async () => {
+    const encoder = new TextEncoder();
+    const utf8Value = "\u665a\u5b89";
+    const encodedBody = encoder.encode(JSON.stringify({ value: utf8Value }));
+    const splitAt = encoder.encode('{"value":"').byteLength + 1;
+    const request = streamingRequest([
+      encodedBody.slice(0, splitAt),
+      encodedBody.slice(splitAt),
+    ]);
+
+    await expect(
+      readBoundedJson(request, encodedBody.byteLength)
+    ).resolves.toEqual({ value: utf8Value });
   });
 
   it("returns a generic public error for an unexpected internal failure", () => {

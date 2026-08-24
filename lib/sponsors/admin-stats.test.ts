@@ -96,6 +96,7 @@ describe("parseSponsorStatsQuery", () => {
   it.each([
     ["range=90d", "unsupported range"],
     ["range=7d&campaignId=not-a-uuid", "malformed campaign id"],
+    ["range=7d&campaignId=", "empty campaign id"],
     ["range=7d&extra=1", "unknown parameter"],
     ["range=7d&range=30d", "duplicate parameter"],
   ])("rejects %s as an %s", (query) => {
