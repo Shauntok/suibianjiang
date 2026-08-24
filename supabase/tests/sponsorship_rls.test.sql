@@ -1219,6 +1219,29 @@ select throws_ok(
 );
 reset role;
 
+select lives_ok(
+  $$
+    insert into storage.objects (bucket_id, name, owner_id, metadata)
+    values (
+      'images',
+      'sponsors/00000000-0000-4000-8000-000000000042/article_inline/task-2-moderator-policy-probe.webp',
+      'a0000000-0000-0000-0000-000000000003',
+      '{"review_probe":"original"}'::jsonb
+    )
+  $$,
+  'privileged fixture creates a moderator-owned sponsor image'
+);
+select is(
+  (
+    select to_jsonb(owner_id::text)
+    from storage.objects
+    where bucket_id = 'images'
+      and name = 'sponsors/00000000-0000-4000-8000-000000000042/article_inline/task-2-moderator-policy-probe.webp'
+  ),
+  '"a0000000-0000-0000-0000-000000000003"'::jsonb,
+  'sponsor image denial fixture is owned by the moderator'
+);
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -1239,7 +1262,47 @@ select throws_ok(
   null,
   'moderator cannot write sponsor images'
 );
+select is_empty(
+  $$
+    update storage.objects
+    set metadata = '{"review_probe":"moderator-update"}'::jsonb
+    where bucket_id = 'images'
+      and name = 'sponsors/00000000-0000-4000-8000-000000000042/article_inline/task-2-moderator-policy-probe.webp'
+    returning 1
+  $$,
+  'moderator cannot update a moderator-owned sponsor image'
+);
+select is_empty(
+  $$
+    delete from storage.objects
+    where bucket_id = 'images'
+      and name = 'sponsors/00000000-0000-4000-8000-000000000042/article_inline/task-2-moderator-policy-probe.webp'
+    returning 1
+  $$,
+  'moderator cannot delete a moderator-owned sponsor image'
+);
 reset role;
+
+select is(
+  (
+    select metadata -> 'review_probe'
+    from storage.objects
+    where bucket_id = 'images'
+      and name = 'sponsors/00000000-0000-4000-8000-000000000042/article_inline/task-2-moderator-policy-probe.webp'
+  ),
+  '"original"'::jsonb,
+  'moderator update denial leaves sponsor image metadata unchanged'
+);
+select is(
+  (
+    select count(*)
+    from storage.objects
+    where bucket_id = 'images'
+      and name = 'sponsors/00000000-0000-4000-8000-000000000042/article_inline/task-2-moderator-policy-probe.webp'
+  ),
+  1::bigint,
+  'moderator delete denial leaves sponsor image in place'
+);
 
 select lives_ok(
   $$ revoke all on table storage.objects from authenticated $$,
