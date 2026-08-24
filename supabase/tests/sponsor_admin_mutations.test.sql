@@ -145,6 +145,44 @@ select is(
   'every sponsor mutation RPC fixes an empty search path'
 );
 
+select is(
+  (
+    with qualified_cast_types as (
+      select distinct (cast_matches.captures)[1] as type_name
+      from pg_catalog.pg_proc p
+      join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+      cross join lateral pg_catalog.regexp_matches(
+        pg_catalog.pg_get_functiondef(p.oid),
+        '::pg_catalog[.]([[:alpha:]_][[:alnum:]_]*)',
+        'g'
+      ) as cast_matches(captures)
+      where n.nspname = 'public'
+        and p.proname in (
+          'create_sponsor_campaign_with_log',
+          'update_sponsor_campaign_with_log',
+          'update_sponsor_settings_with_log'
+        )
+    )
+    select coalesce(
+      pg_catalog.jsonb_agg(
+        qualified_cast_types.type_name
+        order by qualified_cast_types.type_name collate "C"
+      ),
+      '[]'::jsonb
+    )
+    from qualified_cast_types
+    where not exists (
+      select 1
+      from pg_catalog.pg_type t
+      join pg_catalog.pg_namespace n on n.oid = t.typnamespace
+      where n.nspname = 'pg_catalog'
+        and t.typname = qualified_cast_types.type_name
+    )
+  ),
+  '[]'::jsonb,
+  'every pg_catalog-qualified cast uses a real catalog type name'
+);
+
 select ok(
   has_function_privilege(
     'service_role',
