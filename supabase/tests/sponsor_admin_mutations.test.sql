@@ -119,9 +119,15 @@ select results_eq(
   'every sponsor mutation RPC is SECURITY DEFINER'
 );
 
-select results_eq(
-  $$
-    select p.proconfig
+select is(
+  (
+    select pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_object(
+        'function', p.proname::text,
+        'config', pg_catalog.to_jsonb(p.proconfig)
+      )
+      order by p.proname::text collate "C"
+    )
     from pg_catalog.pg_proc p
     join pg_catalog.pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
@@ -130,14 +136,12 @@ select results_eq(
         'update_sponsor_campaign_with_log',
         'update_sponsor_settings_with_log'
       )
-    order by p.proname
-  $$,
-  $$
-    values
-      (array['search_path=""']::text[]),
-      (array['search_path=""']::text[]),
-      (array['search_path=""']::text[])
-  $$,
+  ),
+  '[
+    {"function":"create_sponsor_campaign_with_log","config":["search_path=\"\""]},
+    {"function":"update_sponsor_campaign_with_log","config":["search_path=\"\""]},
+    {"function":"update_sponsor_settings_with_log","config":["search_path=\"\""]}
+  ]'::jsonb,
   'every sponsor mutation RPC fixes an empty search path'
 );
 
