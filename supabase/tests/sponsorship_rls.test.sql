@@ -1272,6 +1272,15 @@ select is_empty(
   $$,
   'moderator cannot update a moderator-owned sponsor image'
 );
+select ok(
+  current_setting('storage.allow_delete_query', true) is distinct from 'true',
+  'storage direct-delete bypass starts disabled'
+);
+select set_config('storage.allow_delete_query', 'true', true);
+select ok(
+  current_setting('storage.allow_delete_query', true) = 'true',
+  'storage direct-delete bypass is enabled locally for the RLS probe'
+);
 select is_empty(
   $$
     delete from storage.objects
@@ -1280,6 +1289,11 @@ select is_empty(
     returning 1
   $$,
   'moderator cannot delete a moderator-owned sponsor image'
+);
+select set_config('storage.allow_delete_query', 'false', true);
+select ok(
+  current_setting('storage.allow_delete_query', true) = 'false',
+  'storage direct-delete bypass is disabled after the RLS probe'
 );
 reset role;
 
