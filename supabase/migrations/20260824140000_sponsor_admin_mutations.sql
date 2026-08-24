@@ -102,7 +102,7 @@ begin
   v_state := p_campaign ->> 'state';
   v_starts_at := (p_campaign ->> 'startsAt')::pg_catalog.timestamptz;
   v_ends_at := (p_campaign ->> 'endsAt')::pg_catalog.timestamptz;
-  v_weight := (p_campaign ->> 'weight')::pg_catalog.integer;
+  v_weight := (p_campaign ->> 'weight')::pg_catalog.int4;
   v_placements := coalesce(
     p_campaign -> 'placements',
     '[]'::pg_catalog.jsonb
@@ -198,7 +198,7 @@ begin
       pg_catalog.btrim(v_placement ->> 'altText'),
       ''
     );
-    v_enabled := (v_placement ->> 'enabled')::pg_catalog.boolean;
+    v_enabled := (v_placement ->> 'enabled')::pg_catalog.bool;
     v_placement_title := nullif(
       pg_catalog.btrim(v_placement ->> 'publicTitle'),
       ''
@@ -413,7 +413,7 @@ begin
   v_state := p_campaign ->> 'state';
   v_starts_at := (p_campaign ->> 'startsAt')::pg_catalog.timestamptz;
   v_ends_at := (p_campaign ->> 'endsAt')::pg_catalog.timestamptz;
-  v_weight := (p_campaign ->> 'weight')::pg_catalog.integer;
+  v_weight := (p_campaign ->> 'weight')::pg_catalog.int4;
 
   if v_internal_name is null
     or v_partner_name is null
@@ -507,7 +507,7 @@ begin
         pg_catalog.btrim(v_placement ->> 'altText'),
         ''
       );
-      v_enabled := (v_placement ->> 'enabled')::pg_catalog.boolean;
+      v_enabled := (v_placement ->> 'enabled')::pg_catalog.bool;
       v_placement_title := nullif(
         pg_catalog.btrim(v_placement ->> 'publicTitle'),
         ''
@@ -700,26 +700,26 @@ begin
 
   v_commercial_enabled := (
     p_settings ->> 'commercialEnabled'
-  )::pg_catalog.boolean;
+  )::pg_catalog.bool;
   v_placement_enabled := p_settings -> 'placementEnabled';
   v_minimum_paragraphs := (
     p_settings ->> 'minimumParagraphs'
-  )::pg_catalog.integer;
+  )::pg_catalog.int4;
   v_minimum_characters := (
     p_settings ->> 'minimumCharacters'
-  )::pg_catalog.integer;
+  )::pg_catalog.int4;
   v_max_ads_per_page := (
     p_settings ->> 'maxAdsPerPage'
-  )::pg_catalog.integer;
+  )::pg_catalog.int4;
   v_eligible_probability := (
     p_settings ->> 'eligibleProbability'
-  )::pg_catalog.integer;
+  )::pg_catalog.int4;
   v_cooldown_page_views := (
     p_settings ->> 'cooldownPageViews'
-  )::pg_catalog.integer;
+  )::pg_catalog.int4;
   v_max_ad_pages_per_ten := (
     p_settings ->> 'maxAdPagesPerTen'
-  )::pg_catalog.integer;
+  )::pg_catalog.int4;
   v_timezone := nullif(
     pg_catalog.btrim(p_settings ->> 'timezone'),
     ''
