@@ -890,18 +890,22 @@ select lives_ok(
   $$,
   'owner policy allows campaign creation'
 );
+select lives_ok(
+  $$
+    update public.sponsor_campaigns
+    set state = 'paused', updated_by = auth.uid()
+    where id = 'c0000000-0000-0000-0000-000000000010'
+  $$,
+  'owner policy allows campaign update execution'
+);
 select is(
   (
-    with updated as (
-      update public.sponsor_campaigns
-      set state = 'paused', updated_by = auth.uid()
-      where id = 'c0000000-0000-0000-0000-000000000010'
-      returning state
-    )
-    select to_jsonb(state) from updated
+    select to_jsonb(state)
+    from public.sponsor_campaigns
+    where id = 'c0000000-0000-0000-0000-000000000010'
   ),
   '"paused"'::jsonb,
-  'owner policy allows campaign updates'
+  'owner policy updates campaign state'
 );
 select is(
   (
@@ -992,18 +996,22 @@ select lives_ok(
   $$,
   'admin policy allows campaign creation'
 );
+select lives_ok(
+  $$
+    update public.sponsor_campaigns
+    set state = 'published', updated_by = auth.uid()
+    where id = 'c0000000-0000-0000-0000-000000000020'
+  $$,
+  'admin policy allows campaign update execution'
+);
 select is(
   (
-    with updated as (
-      update public.sponsor_campaigns
-      set state = 'published', updated_by = auth.uid()
-      where id = 'c0000000-0000-0000-0000-000000000020'
-      returning state
-    )
-    select to_jsonb(state) from updated
+    select to_jsonb(state)
+    from public.sponsor_campaigns
+    where id = 'c0000000-0000-0000-0000-000000000020'
   ),
   '"published"'::jsonb,
-  'admin policy allows campaign updates'
+  'admin policy updates campaign state'
 );
 select is(
   (
