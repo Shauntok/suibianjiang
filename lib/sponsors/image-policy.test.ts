@@ -52,6 +52,12 @@ vi.mock("@/lib/supabase-admin", () => ({
 const campaignId = "c0000000-0000-4000-8000-000000000001";
 const pngBytes = createPng();
 const jpegBytes = createJpeg();
+const vp8WebpBytes = createWebP(
+  "VP8 ",
+  Uint8Array.from([
+    0x10, 0x00, 0x00, 0x9d, 0x01, 0x2a, 0x01, 0x00, 0x01, 0x00, 0x00,
+  ])
+);
 const webpBytes = createWebP(
   "VP8L",
   Uint8Array.from([0x2f, 0x00, 0x00, 0x00, 0x00, 0x00])
@@ -82,6 +88,7 @@ describe("validateSponsorImage", () => {
     ["photo.jpg", "image/jpeg", jpegBytes, "jpg"],
     ["photo.jpeg", "image/jpeg", jpegBytes, "jpg"],
     ["photo.png", "image/png", pngBytes, "png"],
+    ["photo-lossy.webp", "image/webp", vp8WebpBytes, "webp"],
     ["photo.webp", "image/webp", webpBytes, "webp"],
   ] as const)(
     "accepts a byte-valid %s and derives the server extension",

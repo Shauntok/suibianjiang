@@ -434,22 +434,23 @@ function isWebP(bytes: Uint8Array): boolean {
       return false;
     }
 
-    if (chunkType === "VP8 ") {
-      sawImageChunk ||= hasValidVp8Frame(bytes, dataOffset, chunkLength);
-    } else if (chunkType === "VP8L") {
-      sawImageChunk ||= hasValidVp8LosslessFrame(
-        bytes,
-        dataOffset,
-        chunkLength
-      );
-    } else if (chunkType === "VP8X") {
-      sawImageChunk ||= hasValidVp8ExtendedHeader(
-        bytes,
-        dataOffset,
-        chunkLength
-      );
+    if (sawImageChunk) {
+      return false;
     }
 
+    if (chunkType === "VP8 ") {
+      if (!hasValidVp8Frame(bytes, dataOffset, chunkLength)) {
+        return false;
+      }
+    } else if (chunkType === "VP8L") {
+      if (!hasValidVp8LosslessFrame(bytes, dataOffset, chunkLength)) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+
+    sawImageChunk = true;
     offset = dataOffset + paddedLength;
   }
 
@@ -582,7 +583,7 @@ function hasValidVp8Frame(
   chunkLength: number
 ): boolean {
   return (
-    chunkLength >= 10 &&
+    chunkLength > 10 &&
     bytes[dataOffset + 3] === 0x9d &&
     bytes[dataOffset + 4] === 0x01 &&
     bytes[dataOffset + 5] === 0x2a &&
@@ -597,23 +598,9 @@ function hasValidVp8LosslessFrame(
   chunkLength: number
 ): boolean {
   return (
-    chunkLength >= 5 &&
+    chunkLength > 5 &&
     bytes[dataOffset] === 0x2f &&
     (bytes[dataOffset + 4] & 0xe0) === 0
-  );
-}
-
-function hasValidVp8ExtendedHeader(
-  bytes: Uint8Array,
-  dataOffset: number,
-  chunkLength: number
-): boolean {
-  return (
-    chunkLength === 10 &&
-    (bytes[dataOffset] & 0xc1) === 0 &&
-    bytes[dataOffset + 1] === 0 &&
-    bytes[dataOffset + 2] === 0 &&
-    bytes[dataOffset + 3] === 0
   );
 }
 
