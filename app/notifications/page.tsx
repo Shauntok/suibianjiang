@@ -4,21 +4,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import MouseGlow from "@/components/MouseGlow";
-
-type TabKey = "unread" | "read" | "important" | "starred" | "trash";
-
-type NotificationItem = {
-  id: string;
-  user_id: string;
-  title: string;
-  content: string;
-  type: string;
-  is_read: boolean;
-  is_important: boolean;
-  is_starred: boolean;
-  deleted_at: string | null;
-  created_at: string;
-};
+import InteractionNotificationCard from "@/components/notifications/InteractionNotificationCard";
+import MailboxFilterTabs from "@/components/notifications/MailboxFilterTabs";
+import MailboxNotificationActions from "@/components/notifications/MailboxNotificationActions";
+import NotificationSectionTabs from "@/components/notifications/NotificationSectionTabs";
+import {
+  filterInteractionNotifications,
+  filterMailboxNotifications,
+  type InteractionFilter,
+  type MailboxFilter,
+  type NotificationProfile,
+  type NotificationRecord,
+  type NotificationSection,
+} from "@/lib/notifications/model";
 
 function notifyNavbar() {
   window.dispatchEvent(new Event("notifications-updated"));
@@ -28,7 +26,7 @@ function notifyNavbar() {
   }, 250);
 }
 
-function getTypeLabel(type: string) {
+function getTypeLabel(type: string | null) {
   switch (type) {
     case "announcement":
       return "世界公告";
@@ -50,7 +48,7 @@ function getTypeLabel(type: string) {
   }
 }
 
-function getTypeIcon(type: string) {
+function getTypeIcon(type: string | null) {
   switch (type) {
     case "announcement":
       return "📢";
@@ -73,8 +71,14 @@ function getTypeIcon(type: string) {
 }
 
 export default function NotificationsPage() {
-  const [tab, setTab] = useState<TabKey>("unread");
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [section, setSection] = useState<NotificationSection>("mailbox");
+  const [tab, setTab] = useState<MailboxFilter>("unread");
+  const [interactionFilter, setInteractionFilter] =
+    useState<InteractionFilter>("all");
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
+  const [actorsById, setActorsById] = useState<
+    Record<string, NotificationProfile>
+  >({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -86,35 +90,69 @@ export default function NotificationsPage() {
     }, 4000);
   }
 
-  const unreadCount = notifications.filter(
+  const mailboxNotifications = filterMailboxNotifications(notifications);
+  const allInteractionNotifications = filterInteractionNotifications(
+    notifications,
+    "all"
+  );
+
+  const unreadCount = mailboxNotifications.filter(
     (item) => !item.is_read && !item.deleted_at
   ).length;
 
-  const readCount = notifications.filter(
+  const readCount = mailboxNotifications.filter(
     (item) => item.is_read && !item.deleted_at
   ).length;
 
-  const importantCount = notifications.filter(
+  const importantCount = mailboxNotifications.filter(
     (item) => item.is_important && !item.deleted_at
   ).length;
 
-  const starredCount = notifications.filter(
+  const starredCount = mailboxNotifications.filter(
     (item) => item.is_starred && !item.deleted_at
   ).length;
 
-  const trashCount = notifications.filter((item) => item.deleted_at).length;
+  const trashCount = mailboxNotifications.filter((item) => item.deleted_at).length;
+  const interactionUnreadCount = allInteractionNotifications.filter(
+    (item) => !item.is_read && !item.deleted_at
+  ).length;
 
-  const tabs = [
-    { key: "unread", icon: "✉️", label: "未读", count: unreadCount },
-    { key: "read", icon: "📨", label: "已读", count: readCount },
-    { key: "important", icon: "🚨", label: "重要", count: importantCount },
-    { key: "starred", icon: "⭐", label: "星标", count: starredCount },
-    { key: "trash", icon: "🗑️", label: "垃圾桶", count: trashCount },
-  ] as const;
+  const mailboxFilterCounts: Record<MailboxFilter, number> = {
+    unread: unreadCount,
+    read: readCount,
+    important: importantCount,
+    starred: starredCount,
+    trash: trashCount,
+  };
 
   useEffect(() => {
     fetchNotifications();
+    // fetchNotifications is intentionally run once for the signed-in resident.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function updateView(
+    nextSection: NotificationSection,
+    nextFilter: InteractionFilter = interactionFilter
+  ) {
+    setSection(nextSection);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("section", nextSection);
+
+    if (nextSection === "interactions" && nextFilter !== "all") {
+      url.searchParams.set("type", nextFilter);
+    } else {
+      url.searchParams.delete("type");
+    }
+
+    window.history.replaceState(null, "", url);
+  }
+
+  function updateInteractionFilter(nextFilter: InteractionFilter) {
+    setInteractionFilter(nextFilter);
+    updateView("interactions", nextFilter);
+  }
 
   async function fetchNotifications() {
     const {
@@ -128,9 +166,11 @@ export default function NotificationsPage() {
 
     const { data, error } = await supabase
       .from("notifications")
-      .select("*")
+      .select(
+        "*, post:posts!notifications_post_id_fkey(id,title,type,slug), comment:comments!notifications_comment_id_fkey(id,content)"
+      )
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("last_activity_at", { ascending: false });
 
     if (error) {
       showToast(error.message);
@@ -138,7 +178,35 @@ export default function NotificationsPage() {
       return;
     }
 
-    setNotifications((data || []) as NotificationItem[]);
+    const nextNotifications = (data || []) as unknown as NotificationRecord[];
+    const actorIds = Array.from(
+      new Set(
+        nextNotifications.flatMap((item) => [
+          ...(item.recent_actor_ids || []),
+          ...(item.actor_id ? [item.actor_id] : []),
+        ])
+      )
+    );
+
+    if (actorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username, avatar_url")
+        .in("id", actorIds);
+
+      setActorsById(
+        Object.fromEntries(
+          ((profiles || []) as NotificationProfile[]).map((profile) => [
+            profile.id,
+            profile,
+          ])
+        )
+      );
+    } else {
+      setActorsById({});
+    }
+
+    setNotifications(nextNotifications);
     setLoading(false);
   }
 
@@ -282,7 +350,7 @@ export default function NotificationsPage() {
     await fetchNotifications();
   }
 
-  const filteredNotifications = notifications.filter((item) => {
+  const filteredNotifications = mailboxNotifications.filter((item) => {
     if (tab === "trash") return item.deleted_at;
     if (tab === "unread") return !item.is_read && !item.deleted_at;
     if (tab === "read") return item.is_read && !item.deleted_at;
@@ -291,6 +359,18 @@ export default function NotificationsPage() {
 
     return !item.deleted_at;
   });
+
+  const visibleInteractions = filterInteractionNotifications(
+    notifications,
+    interactionFilter
+  ).filter((item) => !item.deleted_at);
+
+  const interactionTabs = [
+    { key: "all", label: "全部", count: allInteractionNotifications.filter((item) => !item.deleted_at).length },
+    { key: "like", label: "喜欢", count: filterInteractionNotifications(notifications, "like").filter((item) => !item.deleted_at).length },
+    { key: "comment", label: "评论", count: filterInteractionNotifications(notifications, "comment").filter((item) => !item.deleted_at).length },
+    { key: "reply", label: "回复", count: filterInteractionNotifications(notifications, "reply").filter((item) => !item.deleted_at).length },
+  ] as const;
 
   return (
     <main className="relative z-10 min-h-screen overflow-x-hidden bg-black px-5 pb-24 pt-16 text-white md:px-6 md:py-24">
@@ -315,62 +395,105 @@ export default function NotificationsPage() {
           ← 回到首页
         </Link>
 
+        <NotificationSectionTabs
+          section={section}
+          mailboxUnread={unreadCount}
+          interactionUnread={interactionUnreadCount}
+          onChange={updateView}
+        />
+
         <header className="mb-7 md:mb-10">
           <p className="text-xs tracking-[0.4em] text-white/25 md:tracking-[0.45em]">
-            NIGHT MAILBOX
+            {section === "mailbox" ? "NIGHT MAILBOX" : "QUIET ECHOES"}
           </p>
 
           <h1 className="mt-2 text-5xl font-light tracking-tight md:mt-5 md:text-6xl">
-            小时代信箱
+            {section === "mailbox" ? "小时代信箱" : "互动回声"}
           </h1>
 
           <p className="mt-2 max-w-xl text-sm leading-7 text-white/35 md:mt-5 md:leading-8">
-            这里放着来自这个世界的回声：系统提醒、房间消息、居民互动，还有一些不想错过的夜晚来信。
+            {section === "mailbox"
+              ? "这里放着系统提醒、世界公告和不想错过的正式来信。"
+              : "居民留下的喜欢、评论和回复，都安静地收在这里。"}
           </p>
         </header>
 
-        <div className="mb-7 flex flex-wrap gap-2 md:mb-10 md:gap-3">
-          {tabs.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setTab(item.key)}
-              className={
-                tab === item.key
-                  ? "rounded-full border border-white bg-white px-4 py-2.5 text-sm font-semibold text-black transition md:px-5 md:py-3"
-                  : "rounded-full border border-white/10 bg-white/[0.035] px-4 py-2.5 text-sm text-white/45 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white md:px-5 md:py-3"
-              }
-            >
-              <span className="mr-1.5">{item.icon}</span>
-              <span>{item.label}</span>
-              <span className="ml-2 text-xs opacity-60">{item.count}</span>
-            </button>
-          ))}
-        </div>
-
-        {loading && (
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-10 text-center text-white/35 backdrop-blur-2xl md:rounded-[2.5rem] md:p-14">
-            正在翻开今晚的信箱...
+        {section === "mailbox" ? (
+          <MailboxFilterTabs
+            activeFilter={tab}
+            counts={mailboxFilterCounts}
+            onChange={setTab}
+          />
+        ) : (
+          <div className="mb-6 flex flex-wrap gap-1 border-b border-white/[0.07] pb-3 md:mb-8">
+            {interactionTabs.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => updateInteractionFilter(item.key)}
+                className={
+                  interactionFilter === item.key
+                    ? "rounded-full bg-white/[0.09] px-4 py-2 text-sm text-white/85"
+                    : "rounded-full px-4 py-2 text-sm text-white/35 transition hover:bg-white/[0.04] hover:text-white/65"
+                }
+              >
+                {item.label}
+                <span className="ml-2 text-xs opacity-55">{item.count}</span>
+              </button>
+            ))}
           </div>
         )}
 
-        {!loading && filteredNotifications.length === 0 && (
+        {loading && (
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-10 text-center text-white/35 backdrop-blur-2xl md:rounded-[2.5rem] md:p-14">
+            {section === "mailbox"
+              ? "正在翻开今晚的信箱..."
+              : "正在听今晚的回声..."}
+          </div>
+        )}
+
+        {!loading &&
+          (section === "mailbox"
+            ? filteredNotifications.length === 0
+            : visibleInteractions.length === 0) && (
           <div className="flex min-h-[280px] items-center justify-center rounded-[2rem] border border-white/10 bg-white/[0.03] p-8 text-center backdrop-blur-2xl md:min-h-[360px] md:rounded-[2.5rem] md:p-14">
             <div>
-              <div className="text-5xl">📪</div>
+              <div className="text-5xl">
+                {section === "mailbox" ? "📪" : "🌙"}
+              </div>
 
               <h2 className="mt-6 text-2xl font-light text-white/70">
-                这里暂时没有来信
+                {section === "mailbox"
+                  ? "这里暂时没有来信"
+                  : "这里暂时没有新的回声"}
               </h2>
 
               <p className="mt-4 max-w-md text-sm leading-7 text-white/35">
-                世界很安静，但不是没有人在。也许下一封信，正在路上。
+                {section === "mailbox"
+                  ? "世界很安静，但不是没有人在。也许下一封信，正在路上。"
+                  : "等下一次喜欢、评论或回复落下时，它会出现在这里。"}
               </p>
             </div>
           </div>
         )}
 
-        <div className="space-y-4 md:space-y-5">
-          {filteredNotifications.map((item) => {
+        {section === "interactions" && !loading && visibleInteractions.length > 0 && (
+          <div className="border-t border-white/[0.07]">
+            {visibleInteractions.map((item) => (
+              <InteractionNotificationCard
+                key={item.id}
+                notification={item}
+                actorsById={actorsById}
+                onMarkRead={markAsRead}
+                onDelete={moveToTrash}
+              />
+            ))}
+          </div>
+        )}
+
+        {section === "mailbox" && (
+          <div className="space-y-4 md:space-y-5">
+            {filteredNotifications.map((item) => {
             const isUnread = !item.is_read && !item.deleted_at;
 
             return (
@@ -424,68 +547,27 @@ export default function NotificationsPage() {
                   </div>
 
                   <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
-                    {!item.deleted_at && (
-                      <button
-                        onClick={() =>
-                          toggleStarred(item.id, item.is_starred)
-                        }
-                        className={
-                          item.is_starred
-                            ? "rounded-full border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm text-yellow-100/80 transition hover:border-yellow-300/60"
-                            : "rounded-full border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/40 transition hover:border-white/20 hover:text-white"
-                        }
-                      >
-                        {item.is_starred ? "⭐ 已星标" : "☆ 星标"}
-                      </button>
-                    )}
-
-                    {!item.deleted_at && (
-                      <button
-                        onClick={() =>
-                          toggleImportant(item.id, item.is_important)
-                        }
-                        className={
-                          item.is_important
-                            ? "rounded-full border border-red-400/30 bg-red-400/10 px-4 py-2 text-sm text-red-200/80 transition hover:border-red-300/60"
-                            : "rounded-full border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/40 transition hover:border-white/20 hover:text-white"
-                        }
-                      >
-                        🚨 重要
-                      </button>
-                    )}
-
-                    {!item.is_read && !item.deleted_at && (
-                      <button
-                        onClick={() => markAsRead(item.id)}
-                        className="rounded-full border border-white/10 bg-black/30 px-4 py-2 text-sm text-white/45 transition hover:border-white/20 hover:text-white"
-                      >
-                        已阅读
-                      </button>
-                    )}
-
-                    {!item.deleted_at && (
-                      <button
-                        onClick={() => moveToTrash(item.id)}
-                        className="rounded-full border border-red-500/20 bg-red-500/[0.06] px-4 py-2 text-sm text-red-200/70 transition hover:bg-red-500/[0.12] hover:text-red-100"
-                      >
-                        删除
-                      </button>
-                    )}
-
-                    {item.deleted_at && (
-                      <button
-                        onClick={() => restoreNotification(item.id)}
-                        className="rounded-full border border-green-500/20 bg-green-500/[0.06] px-4 py-2 text-sm text-green-200/70 transition hover:bg-green-500/[0.12] hover:text-green-100"
-                      >
-                        恢复
-                      </button>
-                    )}
+                    <MailboxNotificationActions
+                      notificationId={item.id}
+                      isRead={item.is_read}
+                      isStarred={item.is_starred}
+                      isImportant={item.is_important}
+                      isDeleted={Boolean(item.deleted_at)}
+                      onStar={() => toggleStarred(item.id, item.is_starred)}
+                      onImportant={() =>
+                        toggleImportant(item.id, item.is_important)
+                      }
+                      onRead={() => markAsRead(item.id)}
+                      onDelete={() => moveToTrash(item.id)}
+                      onRestore={() => restoreNotification(item.id)}
+                    />
                   </div>
                 </div>
               </article>
             );
-          })}
-        </div>
+            })}
+          </div>
+        )}
       </div>
     </main>
   );

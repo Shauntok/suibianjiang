@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import {
+  FeedbackActionStatus,
+  getFeedbackNotification,
+  isFeedbackFinalStatus,
+} from "@/lib/admin/feedback-status";
 
 type FeedbackStatus =
   | "all"
@@ -10,6 +16,31 @@ type FeedbackStatus =
   | "in_progress"
   | "resolved"
   | "closed";
+
+type FeedbackProfile = {
+  id: string;
+  username: string | null;
+  avatar_url?: string | null;
+};
+
+type FeedbackItem = {
+  id: string;
+  user_id: string | null;
+  type: string;
+  title: string;
+  content: string;
+  status: string;
+  created_at: string;
+  handled_at: string | null;
+  profiles: FeedbackProfile | FeedbackProfile[] | null;
+  handler: FeedbackProfile | FeedbackProfile[] | null;
+};
+
+function getSingleProfile(
+  profile: FeedbackProfile | FeedbackProfile[] | null
+) {
+  return Array.isArray(profile) ? profile[0] : profile;
+}
 
 function getTypeLabel(type: string) {
   switch (type) {
@@ -57,14 +88,24 @@ function getStatusLabel(status: string) {
 }
 
 export default function AdminFeedbackPage() {
-  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FeedbackStatus>("all");
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [statusAction, setStatusAction] = useState<{
+    feedbackId: string;
+    feedbackTitle: string;
+    recipientName: string;
+    status: FeedbackActionStatus;
+  } | null>(null);
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   useEffect(() => {
     fetchFeedbacks();
+    // The page only needs its initial snapshot; refreshes are explicit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function showToast(text: string) {
@@ -106,62 +147,79 @@ export default function AdminFeedbackPage() {
     setLoading(false);
   }
 
-  async function writeLog(
-    action: string,
-    feedbackId: string,
-    details: string
+  function openStatusDialog(
+    item: FeedbackItem,
+    status: FeedbackActionStatus
   ) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const profile = getSingleProfile(item.profiles);
+    const notification = getFeedbackNotification(status, item.title || "反馈");
 
-    if (!user) return;
-
-    await supabase.from("admin_logs").insert([
-      {
-        admin_id: user.id,
-        action,
-        target_type: "feedback",
-        target_id: feedbackId,
-        details,
-      },
-    ]);
+    setStatusAction({
+      feedbackId: item.id,
+      feedbackTitle: item.title || "未命名反馈",
+      recipientName: profile?.username || "这位居民",
+      status,
+    });
+    setNotificationMessage(notification.content);
   }
 
-  async function updateStatus(feedbackId: string, status: string) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  async function confirmStatusUpdate() {
+    if (!statusAction || statusUpdating) return;
 
-    if (!user) return;
+    const trimmedMessage = notificationMessage.trim();
 
-    const { error } = await supabase
-      .from("feedbacks")
-      .update({
-        status,
-        handled_by: user.id,
-        handled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", feedbackId);
-
-    if (error) {
-      showToast(error.message);
+    if (!trimmedMessage) {
+      showToast("请填写要发送给居民的通知内容。");
       return;
     }
 
-    await writeLog(
-      "update_feedback_status",
-      feedbackId,
-      `反馈状态修改为 ${status}`
-    );
+    setStatusUpdating(true);
 
-    showToast(`反馈状态已更新为「${getStatusLabel(status)}」。`);
-    await fetchFeedbacks();
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("登录状态已过期，请重新登录后再试。");
+      }
+
+      const response = await fetch(
+        `/api/admin/feedback/${statusAction.feedbackId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: statusAction.status,
+            message: trimmedMessage,
+          }),
+        }
+      );
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(result?.error || "更新反馈失败，请稍后再试。");
+      }
+
+      showToast(
+        `已更新为「${getStatusLabel(statusAction.status)}」并通知居民。`
+      );
+      setStatusAction(null);
+      setNotificationMessage("");
+      await fetchFeedbacks();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "更新反馈失败。");
+    } finally {
+      setStatusUpdating(false);
+    }
   }
 
   const filteredFeedbacks = feedbacks.filter((item) => {
     const keyword = search.toLowerCase().trim();
+    const profile = getSingleProfile(item.profiles);
 
     const matchStatus = statusFilter === "all" || item.status === statusFilter;
 
@@ -170,7 +228,7 @@ export default function AdminFeedbackPage() {
       item.title?.toLowerCase().includes(keyword) ||
       item.content?.toLowerCase().includes(keyword) ||
       item.type?.toLowerCase().includes(keyword) ||
-      item.profiles?.username?.toLowerCase().includes(keyword) ||
+      profile?.username?.toLowerCase().includes(keyword) ||
       item.id?.toLowerCase().includes(keyword);
 
     return matchStatus && matchSearch;
@@ -203,10 +261,53 @@ export default function AdminFeedbackPage() {
   return (
     <div className="relative space-y-8 overflow-hidden">
       {message && (
-        <div className="fixed left-1/2 top-6 z-[999] -translate-x-1/2 rounded-2xl border border-white/10 bg-zinc-900/95 px-5 py-3 text-sm text-white shadow-2xl backdrop-blur-xl">
+        <div className="fixed left-1/2 top-6 z-[10000] -translate-x-1/2 rounded-2xl border border-white/10 bg-zinc-900/95 px-5 py-3 text-sm text-white shadow-2xl backdrop-blur-xl">
           {message}
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(statusAction)}
+        title={
+          statusAction
+            ? `更新为「${getStatusLabel(statusAction.status)}」`
+            : "更新反馈状态"
+        }
+        description={
+          statusAction
+            ? `确认后会更新「${statusAction.feedbackTitle}」，并把通知发送给 ${statusAction.recipientName}。`
+            : undefined
+        }
+        confirmText="更新并发送通知"
+        danger={statusAction?.status === "closed"}
+        loading={statusUpdating}
+        onConfirm={confirmStatusUpdate}
+        onCancel={() => {
+          if (statusUpdating) return;
+          setStatusAction(null);
+          setNotificationMessage("");
+        }}
+      >
+        <label
+          htmlFor="feedback-notification-message"
+          className="block text-sm text-white/65"
+        >
+          发给居民的通知
+        </label>
+        <textarea
+          id="feedback-notification-message"
+          value={notificationMessage}
+          onChange={(event) => setNotificationMessage(event.target.value)}
+          rows={6}
+          maxLength={800}
+          disabled={statusUpdating}
+          className="safe-pre mt-3 w-full resize-y rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm leading-7 text-white outline-none transition placeholder:text-white/25 focus:border-white/30 disabled:opacity-50"
+          placeholder="写下要发送给居民的信息"
+        />
+        <div className="mt-2 text-right text-xs text-white/30">
+          {notificationMessage.length} / 800
+        </div>
+      </ConfirmDialog>
 
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
         <div>
@@ -267,13 +368,8 @@ export default function AdminFeedbackPage() {
 
       <div className="space-y-4">
         {filteredFeedbacks.map((item) => {
-          const profile = Array.isArray(item.profiles)
-            ? item.profiles[0]
-            : item.profiles;
-
-          const handler = Array.isArray(item.handler)
-            ? item.handler[0]
-            : item.handler;
+          const profile = getSingleProfile(item.profiles);
+          const handler = getSingleProfile(item.handler);
 
           return (
             <article
@@ -336,37 +432,33 @@ export default function AdminFeedbackPage() {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-wrap gap-2 lg:flex-col">
-                  <button
-                    onClick={() => updateStatus(item.id, "in_progress")}
-                    className="rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm text-blue-300 transition hover:bg-blue-500/20"
-                  >
-                    处理中
-                  </button>
-
-                  <button
-                    onClick={() => updateStatus(item.id, "resolved")}
-                    className="rounded-full border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-300 transition hover:bg-green-500/20"
-                  >
-                    已完成
-                  </button>
-
-                  <button
-                    onClick={() => updateStatus(item.id, "closed")}
-                    className="rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-800"
-                  >
-                    关闭
-                  </button>
-
-                  {item.status !== "pending" && (
+                {!isFeedbackFinalStatus(item.status) && (
+                  <div className="flex shrink-0 flex-wrap gap-2 lg:flex-col">
                     <button
-                      onClick={() => updateStatus(item.id, "pending")}
-                      className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-300 transition hover:bg-yellow-500/20"
+                      onClick={() => openStatusDialog(item, "in_progress")}
+                      disabled={!item.user_id || item.status === "in_progress"}
+                      className="rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm text-blue-300 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-35"
                     >
-                      退回待处理
+                      处理中
                     </button>
-                  )}
-                </div>
+
+                    <button
+                      onClick={() => openStatusDialog(item, "resolved")}
+                      disabled={!item.user_id}
+                      className="rounded-full border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-300 transition hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-35"
+                    >
+                      已完成
+                    </button>
+
+                    <button
+                      onClick={() => openStatusDialog(item, "closed")}
+                      disabled={!item.user_id}
+                      className="rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-35"
+                    >
+                      关闭
+                    </button>
+                  </div>
+                )}
               </div>
             </article>
           );

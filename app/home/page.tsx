@@ -184,11 +184,11 @@ export default function HomePage() {
   const quickCards = [
     {
       icon: "📬",
-      title: "小时代信箱",
+      title: "信箱与互动",
       desc:
         unreadCount > 0
-          ? `你有 ${unreadCount} 封未读来信。`
-          : "今晚暂无新来信。",
+          ? `你有 ${unreadCount} 条未读回声。`
+          : "今晚暂无新的回声。",
       href: "/notifications",
     },
     {

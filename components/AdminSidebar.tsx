@@ -173,7 +173,7 @@ export default function AdminSidebar() {
     if (badge === undefined || badge <= 0) return null;
 
     return (
-      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+      <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
         {badge > 99 ? "99+" : badge}
       </span>
     );
@@ -181,12 +181,12 @@ export default function AdminSidebar() {
 
   function renderSection(title: string, links: AdminLink[]) {
     return (
-      <div className="space-y-1.5">
-        <p className="px-3 pt-3 text-[10px] uppercase tracking-[0.25em] text-zinc-600">
+      <div className="space-y-0.5">
+        <p className="px-2 pt-1.5 text-[10px] uppercase tracking-[0.25em] text-zinc-600">
           {title}
         </p>
 
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {links.map((item) => {
             const active = isActiveLink(item.href);
 
@@ -197,21 +197,21 @@ export default function AdminSidebar() {
                 onClick={(e) => handleNavigate(e, item.href)}
                 className={
                   active
-                    ? "group flex items-center gap-3 rounded-2xl bg-white px-2.5 py-2 font-bold text-black transition"
-                    : "group flex items-center gap-3 rounded-2xl px-2.5 py-2 text-zinc-300 transition hover:bg-zinc-900 hover:text-white"
+                    ? "group flex items-center gap-2 rounded-xl bg-white px-2 py-1.5 font-bold text-black transition"
+                    : "group flex items-center gap-2 rounded-xl px-2 py-1.5 text-zinc-300 transition hover:bg-zinc-900 hover:text-white"
                 }
               >
                 <span
                   className={
                     active
-                      ? "flex h-7 w-7 items-center justify-center rounded-xl border border-black bg-black text-white"
-                      : "flex h-7 w-7 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 group-hover:border-zinc-500"
+                      ? "flex h-6 w-6 items-center justify-center rounded-lg border border-black bg-black text-xs text-white"
+                      : "flex h-6 w-6 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-xs group-hover:border-zinc-500"
                   }
                 >
                   {item.icon}
                 </span>
 
-                <span className="text-[13px] font-medium">{item.label}</span>
+                <span className="text-xs font-medium">{item.label}</span>
                 {renderBadge(item.badge)}
               </Link>
             );
@@ -257,7 +257,7 @@ export default function AdminSidebar() {
           </button>
         </div>
 
-        <nav className="space-y-3">
+        <nav className="space-y-1.5">
           {renderSection("总览", overviewLinks)}
           {isModerator && renderSection("社区", communityLinks)}
           {isModerator && renderSection("内容", contentLinks)}
@@ -268,13 +268,19 @@ export default function AdminSidebar() {
         </nav>
       </aside>
 
-      <aside className="hidden self-start lg:sticky lg:top-8 lg:block">
-        <div className="w-56 rounded-3xl border border-zinc-800 bg-zinc-950/80 p-4 shadow-2xl shadow-black/40">
-          <p className="px-3 pb-3 text-xs tracking-[0.25em] text-zinc-500">
+      <aside
+        data-testid="admin-sidebar-desktop"
+        className="hidden self-start lg:sticky lg:top-4 lg:block"
+      >
+        <div
+          data-testid="admin-sidebar-desktop-panel"
+          className="max-h-[calc(100vh-2rem)] w-52 overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3 shadow-2xl shadow-black/40"
+        >
+          <p className="px-2 pb-1.5 text-[11px] tracking-[0.25em] text-zinc-500">
             ADMIN
           </p>
 
-          <nav className="space-y-3">
+          <nav className="space-y-1.5">
             {renderSection("总览", overviewLinks)}
             {isModerator && renderSection("社区", communityLinks)}
             {isModerator && renderSection("内容", contentLinks)}

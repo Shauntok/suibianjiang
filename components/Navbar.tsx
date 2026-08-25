@@ -336,7 +336,7 @@ export default function Navbar() {
                       className="flex items-center gap-3 px-5 py-4 text-white/70 transition hover:bg-white/[0.05] hover:text-white"
                     >
                       <span>📬</span>
-                      <span className="flex-1">小时代信箱</span>
+                      <span className="flex-1">信箱与互动</span>
 
                       {unreadCount > 0 && (
                         <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">

@@ -4,6 +4,7 @@
 import {
   AlertCircle,
   ArrowLeft,
+  CircleAlert,
   ImagePlus,
   LoaderCircle,
   RotateCcw,
@@ -14,6 +15,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 import {
   sponsorPlacements,
@@ -81,6 +84,12 @@ const stateLabels: Record<CampaignState, string> = {
   archived: "归档",
 };
 
+const QUARTER_HOUR_OPTIONS = Array.from({ length: 96 }, (_, index) => {
+  const hours = Math.floor(index / 4);
+  const minutes = (index % 4) * 15;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+});
+
 const KUALA_LUMPUR_OFFSET_MS = 8 * 60 * 60 * 1000;
 const DATETIME_LOCAL_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
@@ -108,6 +117,7 @@ export default function SponsorCampaignForm({
   const [dirty, setDirty] = useState(false);
   const [formError, setFormError] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
+  const [weightHelpOpen, setWeightHelpOpen] = useState(false);
   const previewUrlsRef = useRef(new Set<string>());
 
   const isNew = !initialCampaign && !campaignId;
@@ -522,6 +532,55 @@ export default function SponsorCampaignForm({
 
   return (
     <div className="space-y-5 pt-12 lg:pt-0">
+      <ConfirmDialog
+        open={weightHelpOpen}
+        title="什么是投放权重？"
+        description="权重不是广告数量，而是多个合资格业配同时竞争一个展示机会时的相对比例。"
+        confirmText="明白了"
+        cancelText="关闭"
+        onConfirm={() => setWeightHelpOpen(false)}
+        onCancel={() => setWeightHelpOpen(false)}
+      >
+        <div className="space-y-4 text-sm leading-7 text-white/55">
+          <div className="rounded-lg border border-amber-300/15 bg-amber-300/[0.04] p-4">
+            <p className="font-medium text-amber-100/80">怎么填写</p>
+            <p className="mt-2">
+              每个业配只填写一个整数。例如广告 A 填 100，广告 B 填
+              25；不要在同一个输入框填写 100:25。
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+            <p className="font-medium text-white/80">当前系统上限</p>
+            <p className="mt-2">目前不限制同时接多少个业配。</p>
+            <p>单一页面最多展示 3 个广告，后台默认设置为 2 个。</p>
+            <p>单个业配的权重可设为 1 至 1000。</p>
+          </div>
+
+          <div>
+            <p className="font-medium text-white/80">常见比例</p>
+            <p className="mt-1">
+              权重 100 : 50，出现机会约为 2 : 1。
+            </p>
+          </div>
+
+          <div>
+            <p className="font-medium text-white/80">两则广告的极端例子</p>
+            <p className="mt-1">
+              权重 1000 : 1，出现机会约为 99.90% : 0.10%。
+            </p>
+          </div>
+
+          <div>
+            <p className="font-medium text-white/80">同时有 10 则的例子</p>
+            <p className="mt-1">
+              一则设为 1000，其余九则都设为 1；高权重业配约占
+              99.11%，其余每则约占 0.10%。
+            </p>
+          </div>
+        </div>
+      </ConfirmDialog>
+
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <Link
@@ -617,11 +676,11 @@ export default function SponsorCampaignForm({
               状态与排期
             </h2>
             <p className="mt-1 text-xs leading-5 text-zinc-600">
-              新业配固定从草稿开始；已发布状态会再依据时间显示待开始、进行中或已结束。
+              新业配固定从草稿开始；所有排期使用马来西亚时间 MYT（UTC+8）。
             </p>
           </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-[0.8fr_1.35fr_1.35fr_0.8fr]">
             <SelectField
               label="状态"
               value={fields.state}
@@ -631,28 +690,23 @@ export default function SponsorCampaignForm({
               )}
               onChange={(value) => updateField("state", value as CampaignState)}
             />
-            <TextField
-              label="开始时间"
-              type="datetime-local"
+            <ScheduleDateTimeField
+              label="开始"
               value={fields.startsAt}
               error={errors.startsAt}
               onChange={(value) => updateField("startsAt", value)}
             />
-            <TextField
-              label="结束时间"
-              type="datetime-local"
+            <ScheduleDateTimeField
+              label="结束"
               value={fields.endsAt}
               error={errors.endsAt}
               onChange={(value) => updateField("endsAt", value)}
             />
-            <TextField
-              label="投放权重"
-              type="number"
+            <WeightField
               value={fields.weight}
               error={errors.weight}
-              min={1}
-              max={1000}
               onChange={(value) => updateField("weight", value)}
+              onOpenHelp={() => setWeightHelpOpen(true)}
             />
           </div>
         </section>
@@ -818,6 +872,183 @@ export default function SponsorCampaignForm({
   );
 }
 
+function WeightField({
+  value,
+  error,
+  onChange,
+  onOpenHelp,
+}: {
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+  onOpenHelp: () => void;
+}) {
+  const id = "sponsor-field-投放权重";
+  const errorId = `${id}-error`;
+  const tooltipId = `${id}-tooltip`;
+  const [guardError, setGuardError] = useState("");
+  const displayError = error || guardError;
+  const formatError = "这里只填写一个整数，例如 100；不要填写 100:25。";
+
+  function acceptWeight(nextValue: string) {
+    if (nextValue && !/^\d+$/.test(nextValue)) {
+      setGuardError(formatError);
+      return;
+    }
+
+    if (nextValue) {
+      const numericValue = Number(nextValue);
+
+      if (numericValue < 1 || numericValue > 1000) {
+        setGuardError("投放权重必须是 1 至 1000 的整数。");
+        return;
+      }
+    }
+
+    setGuardError("");
+    onChange(nextValue);
+  }
+
+  return (
+    <div>
+      <div className="flex h-5 items-center gap-1.5">
+        <label htmlFor={id} className="text-xs text-zinc-500">
+          投放权重
+        </label>
+        <span className="group relative inline-flex">
+          <button
+            type="button"
+            aria-label="查看投放权重说明"
+            aria-describedby={tooltipId}
+            onClick={onOpenHelp}
+            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-zinc-600 outline-none transition hover:text-zinc-300 focus-visible:ring-1 focus-visible:ring-white/40"
+          >
+            <CircleAlert aria-hidden="true" className="h-3.5 w-3.5" />
+          </button>
+          <span
+            id={tooltipId}
+            role="tooltip"
+            className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-64 -translate-x-1/2 rounded-md border border-white/10 bg-zinc-950 px-3 py-2 text-center text-xs font-normal leading-5 text-white/70 opacity-0 shadow-2xl transition group-hover:opacity-100 group-focus-within:opacity-100"
+          >
+            每个业配只填一个整数，例如 100；不要填 100:25。权重决定多个合资格业配之间的相对出现机会，点击查看比例与上限。
+          </span>
+        </span>
+      </div>
+      <input
+        id={id}
+        type="number"
+        value={value}
+        min={1}
+        max={1000}
+        step={1}
+        inputMode="numeric"
+        aria-invalid={displayError ? "true" : "false"}
+        aria-describedby={displayError ? errorId : undefined}
+        onKeyDown={(event) => {
+          if ([":", "：", ".", ",", "-", "+", "e", "E"].includes(event.key)) {
+            event.preventDefault();
+            setGuardError(formatError);
+          }
+        }}
+        onPaste={(event) => {
+          const pastedValue = event.clipboardData.getData("text").trim();
+
+          if (!/^\d+$/.test(pastedValue)) {
+            event.preventDefault();
+            setGuardError(formatError);
+          }
+        }}
+        onChange={(event) => acceptWeight(event.target.value)}
+        className="mt-1.5 min-h-11 w-full rounded-md border border-zinc-800 bg-black px-3 text-sm text-white outline-none transition focus:border-zinc-500 focus-visible:ring-2 focus-visible:ring-white/20"
+      />
+      {displayError && (
+        <p id={errorId} role="alert" className="mt-1.5 text-xs text-red-300">
+          {displayError}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ScheduleDateTimeField({
+  label,
+  value,
+  error,
+  onChange,
+}: {
+  label: "开始" | "结束";
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const [dateValue = "", timeValue = ""] = value.split("T", 2);
+  const dateId = `sponsor-field-${label}-date`;
+  const timeId = `sponsor-field-${label}-time`;
+  const errorId = `sponsor-field-${label}-error`;
+  const timeOptions =
+    timeValue && !QUARTER_HOUR_OPTIONS.includes(timeValue)
+      ? [timeValue, ...QUARTER_HOUR_OPTIONS]
+      : QUARTER_HOUR_OPTIONS;
+
+  function updateSchedule(nextDate: string, nextTime: string) {
+    if (!nextDate && !nextTime) {
+      onChange("");
+      return;
+    }
+
+    onChange(`${nextDate}T${nextTime}`);
+  }
+
+  return (
+    <div>
+      <p className="flex h-5 items-center text-xs text-zinc-500">{label}时间</p>
+      <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_7.5rem] gap-2">
+        <div>
+          <label htmlFor={dateId} className="sr-only">
+            {label}日期
+          </label>
+          <input
+            id={dateId}
+            aria-label={`${label}日期`}
+            type="date"
+            value={dateValue}
+            aria-invalid={error ? "true" : "false"}
+            aria-describedby={error ? errorId : undefined}
+            onChange={(event) => updateSchedule(event.target.value, timeValue)}
+            className="min-h-11 w-full rounded-md border border-zinc-800 bg-black px-3 text-sm text-white [color-scheme:dark] outline-none transition focus:border-zinc-500 focus-visible:ring-2 focus-visible:ring-white/20"
+          />
+        </div>
+        <div>
+          <label htmlFor={timeId} className="sr-only">
+            {label}时间
+          </label>
+          <select
+            id={timeId}
+            aria-label={`${label}时间`}
+            value={timeValue}
+            aria-invalid={error ? "true" : "false"}
+            aria-describedby={error ? errorId : undefined}
+            onChange={(event) => updateSchedule(dateValue, event.target.value)}
+            className="min-h-11 w-full rounded-md border border-zinc-800 bg-black px-3 text-sm text-white outline-none transition focus:border-zinc-500 focus-visible:ring-2 focus-visible:ring-white/20"
+          >
+            <option value="">选择时间</option>
+            {timeOptions.map((time) => (
+              <option key={time} value={time}>
+                {time}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {error && (
+        <p id={errorId} role="alert" className="mt-1.5 text-xs text-red-300">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function TextField({
   label,
   value,
@@ -844,7 +1075,7 @@ function TextField({
 
   return (
     <div>
-      <label htmlFor={id} className="text-xs text-zinc-500">
+      <label htmlFor={id} className="flex h-5 items-center text-xs text-zinc-500">
         {label}
       </label>
       <input
@@ -923,7 +1154,7 @@ function SelectField({
 
   return (
     <div>
-      <label htmlFor={id} className="text-xs text-zinc-500">
+      <label htmlFor={id} className="flex h-5 items-center text-xs text-zinc-500">
         {label}
       </label>
       <select

@@ -1,10 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { canManageSponsors, getAdminActor } from "./authorization";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  canManageFeedback,
+  canManageSponsors,
+  getAdminActor,
+} from "./authorization";
 
 vi.mock("@/lib/supabase-server", () => ({
   createSupabaseServerClient: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase-admin", () => ({
+  supabaseAdmin: {
+    auth: { getUser: vi.fn() },
+    from: vi.fn(),
+  },
 }));
 
 type ProfileResult = {
@@ -52,6 +64,18 @@ describe("canManageSponsors", () => {
     [null, false],
   ])("returns %s for role %s", (role, expected) => {
     expect(canManageSponsors(role)).toBe(expected);
+  });
+});
+
+describe("canManageFeedback", () => {
+  it.each([
+    ["owner", true],
+    ["admin", true],
+    ["moderator", false],
+    ["user", false],
+    [null, false],
+  ])("returns %s for role %s", (role, expected) => {
+    expect(canManageFeedback(role)).toBe(expected);
   });
 });
 
@@ -104,5 +128,33 @@ describe("getAdminActor", () => {
     });
 
     await expect(getAdminActor()).rejects.toBe(profileError);
+  });
+
+  it("validates a bearer token when browser auth is stored outside cookies", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { role: "owner" },
+      error: null,
+    });
+    const eq = vi.fn(() => ({ maybeSingle }));
+    const select = vi.fn(() => ({ eq }));
+
+    vi.mocked(supabaseAdmin.auth.getUser).mockResolvedValue({
+      data: { user: { id: "owner-1" } },
+      error: null,
+    } as never);
+    vi.mocked(supabaseAdmin.from).mockReturnValue({ select } as never);
+
+    const request = new Request("http://localhost/api/admin/feedback/id/status", {
+      headers: { Authorization: "Bearer valid-access-token" },
+    });
+
+    await expect(getAdminActor(request)).resolves.toEqual({
+      id: "owner-1",
+      role: "owner",
+    });
+    expect(supabaseAdmin.auth.getUser).toHaveBeenCalledWith(
+      "valid-access-token"
+    );
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
   });
 });

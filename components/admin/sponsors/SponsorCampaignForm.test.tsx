@@ -131,6 +131,64 @@ afterEach(() => {
 });
 
 describe("SponsorCampaignForm defaults and validation", () => {
+  it("uses calendar dates and quarter-hour time selectors for the schedule", () => {
+    render(<SponsorCampaignForm initialCampaign={initialCampaign} />);
+
+    expect(screen.getByLabelText("开始日期")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("开始日期")).toHaveValue("2026-08-25");
+    expect(screen.getByLabelText("开始时间")).toHaveValue("08:00");
+    expect(screen.getAllByRole("option", { name: "08:15" })).toHaveLength(2);
+    expect(screen.getByText(/马来西亚时间 MYT/)).toBeInTheDocument();
+  });
+
+  it("explains delivery weight in a tooltip and a detailed dialog", () => {
+    render(<SponsorCampaignForm />);
+
+    const helpButton = screen.getByRole("button", {
+      name: "查看投放权重说明",
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "权重决定多个合资格业配之间的相对出现机会"
+    );
+
+    fireEvent.click(helpButton);
+
+    expect(
+      screen.getByRole("heading", { name: "什么是投放权重？" })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/单一页面最多展示 3 个广告/)).toBeInTheDocument();
+    expect(screen.getByText(/目前不限制同时接多少个业配/)).toBeInTheDocument();
+    expect(screen.getByText(/1000 : 1/)).toBeInTheDocument();
+    expect(screen.getByText(/同时有 10 则/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/广告 A 填 100，广告 B 填 25/)
+    ).toBeInTheDocument();
+  });
+
+  it("blocks ratio syntax and accepts one integer per campaign", () => {
+    render(<SponsorCampaignForm />);
+
+    const weight = screen.getByLabelText("投放权重");
+
+    expect(fireEvent.keyDown(weight, { key: ":" })).toBe(false);
+    expect(
+      screen.getByText("这里只填写一个整数，例如 100；不要填写 100:25。")
+    ).toBeInTheDocument();
+
+    fireEvent.change(weight, { target: { value: "25" } });
+    expect(weight).toHaveValue(25);
+    expect(
+      screen.queryByText("这里只填写一个整数，例如 100；不要填写 100:25。")
+    ).not.toBeInTheDocument();
+
+    expect(
+      fireEvent.paste(weight, {
+        clipboardData: { getData: () => "100：25" },
+      })
+    ).toBe(false);
+    expect(weight).toHaveValue(25);
+  });
+
   it("shows stored ISO schedules as Kuala Lumpur wall time outside Malaysia", () => {
     expect(new Date("2026-08-25T08:00").toISOString()).toBe(
       "2026-08-25T12:00:00.000Z"
@@ -138,12 +196,10 @@ describe("SponsorCampaignForm defaults and validation", () => {
 
     render(<SponsorCampaignForm initialCampaign={initialCampaign} />);
 
-    expect(screen.getByLabelText("开始时间")).toHaveValue(
-      "2026-08-25T08:00"
-    );
-    expect(screen.getByLabelText("结束时间")).toHaveValue(
-      "2026-09-01T08:00"
-    );
+    expect(screen.getByLabelText("开始日期")).toHaveValue("2026-08-25");
+    expect(screen.getByLabelText("开始时间")).toHaveValue("08:00");
+    expect(screen.getByLabelText("结束日期")).toHaveValue("2026-09-01");
+    expect(screen.getByLabelText("结束时间")).toHaveValue("08:00");
   });
 
   it("submits Kuala Lumpur wall time as an exact ISO instant outside Malaysia", async () => {
@@ -165,9 +221,9 @@ describe("SponsorCampaignForm defaults and validation", () => {
     );
   });
 
-  it("rejects a non-minute Kuala Lumpur local time before saving", async () => {
+  it("rejects a schedule date without a selected time before saving", async () => {
     render(<SponsorCampaignForm />);
-    fillValidNewCampaign({ startsAt: "2026-08-25T08:00:30" });
+    fillValidNewCampaign({ startsAt: "2026-08-25T" });
 
     fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
 
@@ -231,7 +287,7 @@ describe("SponsorCampaignForm defaults and validation", () => {
 
   it("shows the error beside the end time when it is not after the start", async () => {
     render(<SponsorCampaignForm />);
-    fillValidNewCampaign({ endsAt: "2026-08-24T07:59" });
+    fillValidNewCampaign({ endsAt: "2026-08-24T07:45" });
 
     fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
 
@@ -477,11 +533,20 @@ function fillValidNewCampaign(
   fireEvent.change(screen.getByLabelText("目标网址"), {
     target: { value: values.destinationUrl },
   });
+  const [startDate, startTime = ""] = values.startsAt.split("T", 2);
+  const [endDate, endTime = ""] = values.endsAt.split("T", 2);
+
+  fireEvent.change(screen.getByLabelText("开始日期"), {
+    target: { value: startDate },
+  });
   fireEvent.change(screen.getByLabelText("开始时间"), {
-    target: { value: values.startsAt },
+    target: { value: startTime },
+  });
+  fireEvent.change(screen.getByLabelText("结束日期"), {
+    target: { value: endDate },
   });
   fireEvent.change(screen.getByLabelText("结束时间"), {
-    target: { value: values.endsAt },
+    target: { value: endTime },
   });
 }
 

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { getFeedbackLogPresentation } from "@/lib/admin/feedback-log-display";
+import { getAnnouncementLogPresentation } from "@/lib/admin/announcement-log-display";
 
 type LogFilter =
   | "all"
@@ -13,7 +15,39 @@ type LogFilter =
   | "growth"
   | "other";
 
-function getActionStyle(action: string) {
+type AdminLog = {
+  id: string;
+  admin_id: string | null;
+  action: string;
+  details: string | null;
+  target_type: string | null;
+  target_id: string | number | null;
+  created_at: string | null;
+  admin_username?: string | null;
+};
+
+type AdminProfile = {
+  id: string;
+  username: string | null;
+};
+
+type ActionStyle = {
+  label: string;
+  color: string;
+  icon: string;
+  details?: string;
+};
+
+function getActionStyle(
+  action: string,
+  details?: string | null
+): ActionStyle {
+  const feedbackPresentation = getFeedbackLogPresentation(action, details);
+  const announcementPresentation = getAnnouncementLogPresentation(action);
+
+  if (feedbackPresentation) return feedbackPresentation;
+  if (announcementPresentation) return announcementPresentation;
+
   switch (action) {
     case "give_badge":
       return {
@@ -168,7 +202,7 @@ function getLogCategory(action: string): LogFilter {
 export default function AdminLogsPage() {
   const router = useRouter();
 
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<AdminLog[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<LogFilter>("all");
   const [loading, setLoading] = useState(true);
@@ -223,10 +257,14 @@ export default function AdminLogsPage() {
       return;
     }
 
-    const rawLogs = data || [];
+    const rawLogs = (data || []) as AdminLog[];
 
     const adminIds = Array.from(
-      new Set(rawLogs.map((log) => log.admin_id).filter(Boolean))
+      new Set(
+        rawLogs
+          .map((log) => log.admin_id)
+          .filter((id): id is string => Boolean(id))
+      )
     );
 
     const { data: adminProfiles } =
@@ -235,15 +273,19 @@ export default function AdminLogsPage() {
             .from("profiles")
             .select("id, username")
             .in("id", adminIds)
-        : { data: [] as any[] };
+        : { data: [] as AdminProfile[] };
 
     const profileMap = new Map(
-      (adminProfiles || []).map((item: any) => [item.id, item.username])
+      ((adminProfiles || []) as AdminProfile[]).map((item) => [
+        item.id,
+        item.username,
+      ])
     );
 
     const logsWithAdminName = rawLogs.map((log) => ({
       ...log,
-      admin_username: profileMap.get(log.admin_id) || "未知管理员",
+      admin_username:
+        (log.admin_id ? profileMap.get(log.admin_id) : null) || "未知管理员",
     }));
 
     setLogs(logsWithAdminName);
@@ -386,8 +428,9 @@ export default function AdminLogsPage() {
           </div>
         )}
 
-        {filteredLogs.map((log: any) => {
-          const actionStyle = getActionStyle(log.action);
+        {filteredLogs.map((log) => {
+          const actionStyle = getActionStyle(log.action, log.details);
+          const displayDetails = actionStyle.details || log.details;
 
           return (
             <div
@@ -404,7 +447,7 @@ export default function AdminLogsPage() {
                   </div>
 
                   <p className="safe-pre text-sm leading-7 text-zinc-400">
-                    {log.details || "没有详情。"}
+                    {displayDetails || "没有详情。"}
                   </p>
 
                   <div className="flex flex-wrap gap-3 text-xs text-zinc-600">
