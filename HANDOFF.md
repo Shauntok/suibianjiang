@@ -185,7 +185,7 @@ Owner 与 Admin 可管理；Moderator 没有业配导航，API 与数据库 RPC 
 * 全仓 `npm run lint`：非零，209 errors、56 warnings；记录基线为 211 errors、56 warnings，且 changed-file 精确交集为 0。保留为既有 lint 债务。
 * Vitest 仍显示既有的 Vite native config-loader ESM advisory，不影响测试结果。
 
-Task 2/4 的 linked Supabase SQL 由 controller 在先前的可回滚事务中验证：Task 2 pgTAP `1..113`、Task 4 pgTAP `1..25`；ROLLBACK 后 sponsor tables 为 0，Task 4 functions 为 0。Task 7 没有重跑或持久化任何 SQL。
+Task 7 由 controller 在 linked Supabase 的独立可回滚事务中重新验证：Task 2 pgTAP `1..113`、Task 4 pgTAP `1..25`；ROLLBACK 后 sponsor tables 为 0，Task 4 functions 为 0。没有持久化任何 SQL。
 
 ### 上传、时区与界面证据
 
