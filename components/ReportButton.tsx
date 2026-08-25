@@ -8,6 +8,7 @@ type Props = {
   targetId: string | number;
   authorId?: string;
   compact?: boolean;
+  quiet?: boolean;
 };
 
 const reasonOptions = [
@@ -31,6 +32,7 @@ export default function ReportButton({
   targetId,
   authorId,
   compact = false,
+  quiet = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -142,7 +144,9 @@ export default function ReportButton({
         onClick={openReportModal}
         disabled={loading}
         className={
-          compact
+          quiet
+            ? "min-h-11 border-0 bg-transparent px-0 text-xs text-red-200/40 transition hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
+            : compact
             ? "rounded-full border border-red-500/20 bg-red-500/[0.05] px-6 py-3 text-center text-sm text-red-200/60 transition hover:border-red-400/30 hover:bg-red-500/[0.1] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-40"
             : "rounded-full border border-red-500/25 bg-red-500/[0.06] px-6 py-3 text-center text-sm text-red-200/70 transition hover:border-red-400/30 hover:bg-red-500/[0.12] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-40"
         }

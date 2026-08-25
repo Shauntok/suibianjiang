@@ -23,7 +23,32 @@ export default function LikeButton({
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    let active = true;
+
+    async function fetchLikeState() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !active) return;
+
+      setCurrentUserId(user.id);
+
+      const { data: myLike } = await supabase
+        .from("post_likes")
+        .select("id, is_active")
+        .eq("post_id", postId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (active) setLiked(!!myLike?.is_active);
+    }
+
     fetchLikeState();
+
+    return () => {
+      active = false;
+    };
   }, [postId]);
 
   function showMessage(text: string) {
@@ -32,25 +57,6 @@ export default function LikeButton({
     window.setTimeout(() => {
       setMessage("");
     }, 3000);
-  }
-
-  async function fetchLikeState() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    setCurrentUserId(user.id);
-
-    const { data: myLike } = await supabase
-      .from("post_likes")
-      .select("id, is_active")
-      .eq("post_id", postId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    setLiked(!!myLike?.is_active);
   }
 
   async function toggleLike() {
@@ -152,7 +158,7 @@ export default function LikeButton({
   }
 
   return (
-    <div className="inline-flex flex-col items-start gap-2">
+    <div className="relative inline-flex items-start">
       <button
         type="button"
         onClick={toggleLike}
@@ -169,7 +175,10 @@ export default function LikeButton({
       </button>
 
       {message && (
-        <p className="max-w-[220px] text-xs leading-5 text-amber-200/75">
+        <p
+          role="status"
+          className="pointer-events-none absolute left-0 top-full z-20 mt-2 w-max max-w-[min(220px,calc(100vw-2rem))] text-xs leading-5 text-amber-200/75"
+        >
           {message}
         </p>
       )}

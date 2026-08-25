@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Handshake } from "lucide-react";
+import { ClipboardList, Handshake } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -115,6 +115,11 @@ export default function AdminSidebar() {
       label: "业配中心",
       icon: <Handshake aria-hidden="true" className="h-4 w-4" />,
     },
+    {
+      href: "/admin/sponsors/inquiries",
+      label: "合作申请",
+      icon: <ClipboardList aria-hidden="true" className="h-4 w-4" />,
+    },
   ];
 
   const growthLinks: AdminLink[] = [
@@ -166,6 +171,9 @@ export default function AdminSidebar() {
   }
 
   function isActiveLink(href: string) {
+    if (href === "/admin/sponsors" && pathname.startsWith("/admin/sponsors/inquiries")) {
+      return false;
+    }
     return pathname === href || pathname.startsWith(href + "/");
   }
 

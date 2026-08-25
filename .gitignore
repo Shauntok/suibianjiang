@@ -13,6 +13,8 @@
 # testing
 /coverage
 /.worktrees/
+/.superpowers/
+/supabase/.temp/
 
 # next.js
 /.next/

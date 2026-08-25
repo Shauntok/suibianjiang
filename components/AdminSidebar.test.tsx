@@ -13,6 +13,7 @@ vi.mock("@/lib/supabase", () => {
     select: vi.fn(),
     neq: vi.fn(),
     eq: vi.fn(),
+    single: vi.fn().mockResolvedValue({ data: { role: "admin" } }),
     then: (resolve: (value: { count: number }) => unknown) =>
       Promise.resolve({ count: 0 }).then(resolve),
   };
@@ -23,7 +24,9 @@ vi.mock("@/lib/supabase", () => {
 
   return {
     supabase: {
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "admin-1" } } }),
+      },
       from: vi.fn().mockReturnValue(query),
     },
   };
@@ -41,5 +44,13 @@ describe("AdminSidebar desktop layout", () => {
     expect(sidebar).toHaveClass("lg:top-4");
     expect(panel).toHaveClass("max-h-[calc(100vh-2rem)]", "overflow-y-auto", "w-52");
     expect(screen.getAllByText("回首页").length).toBeGreaterThan(0);
+  });
+
+  it("shows a separate sponsorship inquiry destination for admins", async () => {
+    render(<AdminSidebar />);
+
+    expect(await screen.findAllByText("业配中心")).not.toHaveLength(0);
+    const links = await screen.findAllByRole("link", { name: /合作申请/ });
+    expect(links[0]).toHaveAttribute("href", "/admin/sponsors/inquiries");
   });
 });
