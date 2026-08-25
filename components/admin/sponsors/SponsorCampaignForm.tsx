@@ -970,7 +970,7 @@ function Switch({
         }`}
       >
         <span
-          className={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition-transform ${
+          className={`absolute left-0 top-0.5 h-3.5 w-3.5 rounded-full transition-transform ${
             checked
               ? "translate-x-[21px] bg-black"
               : "translate-x-0.5 bg-zinc-400"

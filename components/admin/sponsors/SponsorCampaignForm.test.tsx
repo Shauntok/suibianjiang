@@ -188,6 +188,32 @@ describe("SponsorCampaignForm defaults and validation", () => {
     }
   });
 
+  it("anchors placement switch thumbs left when off and moves them right when on", () => {
+    render(<SponsorCampaignForm />);
+
+    const control = screen.getByRole("switch", {
+      name: "启用居民首页宽幅",
+    });
+    const track = control.firstElementChild;
+    const thumb = track?.firstElementChild;
+
+    expect(track).toHaveClass("bg-zinc-900");
+    expect(thumb).toHaveClass(
+      "left-0",
+      "translate-x-0.5",
+      "bg-zinc-400"
+    );
+
+    fireEvent.click(control);
+
+    expect(track).toHaveClass("bg-amber-300/80");
+    expect(thumb).toHaveClass(
+      "left-0",
+      "translate-x-[21px]",
+      "bg-black"
+    );
+  });
+
   it.each(["javascript:alert(1)", "data:text/html,bad"])(
     "blocks the unsafe destination URL %s before any request",
     async (destinationUrl) => {
