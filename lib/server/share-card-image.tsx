@@ -1,9 +1,16 @@
+import { readFile } from "node:fs/promises";
+
 import { ImageResponse } from "next/og";
 
 import type { ShareCardData } from "@/lib/server/share-card";
 
-export function renderShareCardImage(data: ShareCardData) {
+const notoSansSc = readFile(
+  new URL("../../assets/fonts/NotoSansSC-VF.ttf", import.meta.url),
+);
+
+export async function renderShareCardImage(data: ShareCardData) {
   const path = new URL(data.canonicalUrl).pathname;
+  const font = await notoSansSc;
 
   return new ImageResponse(
     <div
@@ -19,7 +26,7 @@ export function renderShareCardImage(data: ShareCardData) {
         background: "#030304",
         color: "#f7f4ff",
         padding: "104px 92px",
-        fontFamily: "sans-serif",
+        fontFamily: "Noto Sans SC",
       }}
     >
       <div
@@ -149,6 +156,17 @@ export function renderShareCardImage(data: ShareCardData) {
         </span>
       </div>
     </div>,
-    { width: 1080, height: 1920 },
+    {
+      width: 1080,
+      height: 1920,
+      fonts: [
+        {
+          name: "Noto Sans SC",
+          data: font,
+          weight: 400,
+          style: "normal",
+        },
+      ],
+    },
   );
 }

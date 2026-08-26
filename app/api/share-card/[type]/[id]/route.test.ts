@@ -73,6 +73,58 @@ describe("GET /api/share-card/[type]/[id]", () => {
 
     expect(response.status).toBe(404);
     expect(await response.text()).toBe("");
+    expect(loadPublicShareCardData).toHaveBeenCalledWith("diary", 42);
     expect(renderShareCardImage).not.toHaveBeenCalled();
+  });
+
+  it("embeds the local CJK font in the image response", async () => {
+    const fontData = new Uint8Array([78, 111, 116, 111]).buffer;
+    const readFile = vi.fn().mockResolvedValue(fontData);
+    const fetch = vi.fn();
+    const imageResponse = vi.fn(function ImageResponse() {
+      return new Response(null);
+    });
+
+    vi.doMock("node:fs/promises", () => ({
+      default: { readFile },
+      readFile,
+    }));
+    vi.doMock("next/og", () => ({ ImageResponse: imageResponse }));
+    vi.stubGlobal("fetch", fetch);
+
+    try {
+      const { renderShareCardImage } =
+        await vi.importActual<typeof import("@/lib/server/share-card-image")>(
+          "@/lib/server/share-card-image",
+        );
+
+      await renderShareCardImage(publicCard);
+
+      expect(readFile).toHaveBeenCalledTimes(1);
+      const [fontPath] = readFile.mock.calls[0];
+      expect(fontPath).toBeInstanceOf(URL);
+      expect((fontPath as URL).pathname).toContain(
+        "/assets/fonts/NotoSansSC-VF.ttf",
+      );
+      expect(fetch).not.toHaveBeenCalled();
+      expect(imageResponse).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          fonts: [
+            expect.objectContaining({
+              name: "Noto Sans SC",
+              data: fontData,
+              weight: 400,
+              style: "normal",
+            }),
+          ],
+        }),
+      );
+    } finally {
+      vi.doUnmock("node:fs/promises");
+      vi.doUnmock("next/og");
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
   });
 });

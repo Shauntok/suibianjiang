@@ -24,7 +24,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const data = await loadPublicShareCardData(type, id);
   if (!data) return notFound();
 
-  const response = renderShareCardImage(data);
+  const response = await renderShareCardImage(data);
   response.headers.set("Cache-Control", CACHE_CONTROL);
   return response;
 }
