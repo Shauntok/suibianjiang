@@ -8,6 +8,7 @@ type Props = {
   authorId: string;
   initialCount?: number;
   compact?: boolean;
+  mobileFullWidth?: boolean;
 };
 
 export default function LikeButton({
@@ -15,6 +16,7 @@ export default function LikeButton({
   authorId,
   initialCount = 0,
   compact = false,
+  mobileFullWidth = false,
 }: Props) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(initialCount);
@@ -158,12 +160,18 @@ export default function LikeButton({
   }
 
   return (
-    <div className="relative inline-flex items-start">
+    <div
+      className={`relative inline-flex items-start ${
+        mobileFullWidth ? "w-full md:w-auto" : ""
+      }`}
+    >
       <button
         type="button"
         onClick={toggleLike}
         disabled={loading}
         className={`rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+          mobileFullWidth ? "w-full md:w-auto" : ""
+        } ${
           compact ? "px-5 py-2.5 text-sm" : "px-5 py-3 text-sm"
         } ${
           liked
@@ -177,7 +185,7 @@ export default function LikeButton({
       {message && (
         <p
           role="status"
-          className="pointer-events-none absolute left-0 top-full z-20 mt-2 w-max max-w-[min(220px,calc(100vw-2rem))] text-xs leading-5 text-amber-200/75"
+          className="pointer-events-none fixed left-1/2 top-24 z-[120] w-max max-w-[calc(100vw-2rem)] animate-[mobile-like-notice_3s_ease-in-out_forwards] rounded-xl border border-yellow-300/25 bg-yellow-200/15 px-4 py-3 text-xs leading-5 text-yellow-50/90 shadow-2xl shadow-black backdrop-blur-xl md:absolute md:left-0 md:top-full md:z-20 md:mt-2 md:max-w-[min(220px,calc(100vw-2rem))] md:animate-none md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0 md:text-amber-200/75 md:shadow-none md:backdrop-blur-none"
         >
           {message}
         </p>

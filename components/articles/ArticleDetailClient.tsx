@@ -315,11 +315,16 @@ export default function ArticleDetailClient({
           </div>
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:flex-wrap">
+            <div
+              className={`grid gap-3 md:flex md:flex-wrap ${
+                isAuthor ? "grid-cols-1" : "grid-cols-2"
+              }`}
+            >
               <LikeButton
                 postId={article.id}
                 authorId={article.author_id}
                 initialCount={article.likeCount || 0}
+                mobileFullWidth
               />
 
               {!isAuthor && (
@@ -328,6 +333,7 @@ export default function ArticleDetailClient({
                   targetId={article.id}
                   authorId={article.author_id}
                   compact
+                  mobileFullWidth
                 />
               )}
 

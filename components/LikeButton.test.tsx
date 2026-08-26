@@ -31,15 +31,44 @@ describe("LikeButton feedback placement", () => {
     likesTable.maybeSingle.mockResolvedValue({ data: null, error: null });
   });
 
-  it("shows the owner hint as a floating status without stretching nearby actions", async () => {
-    render(<LikeButton postId={10} authorId="author" initialCount={4} />);
+  it("shows the owner hint as a mobile popup and keeps the desktop hint placement", async () => {
+    render(
+      <LikeButton
+        postId={10}
+        authorId="author"
+        initialCount={4}
+        mobileFullWidth
+      />
+    );
 
     const likeButton = await screen.findByRole("button", { name: "🤍 喜欢 4" });
     fireEvent.click(likeButton);
 
     const hint = screen.getByRole("status");
     expect(hint).toHaveTextContent("这束光已经在你自己的房间里啦。");
-    expect(hint).toHaveClass("absolute");
+    expect(hint).toHaveClass(
+      "fixed",
+      "top-24",
+      "rounded-xl",
+      "animate-[mobile-like-notice_3s_ease-in-out_forwards]",
+      "md:absolute",
+      "md:top-full"
+    );
     expect(likeButton.parentElement).toHaveClass("relative");
+  });
+
+  it("fills the mobile action row without changing desktop width", async () => {
+    render(
+      <LikeButton
+        postId={10}
+        authorId="author"
+        initialCount={4}
+        mobileFullWidth
+      />
+    );
+
+    const likeButton = await screen.findByRole("button", { name: "🤍 喜欢 4" });
+    expect(likeButton).toHaveClass("w-full", "md:w-auto");
+    expect(likeButton.parentElement).toHaveClass("w-full", "md:w-auto");
   });
 });

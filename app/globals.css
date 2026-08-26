@@ -133,6 +133,24 @@ body {
   @apply mb-6 text-zinc-400;
 }
 
+@keyframes mobile-like-notice {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -140%);
+  }
+
+  12%,
+  82% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -140%);
+  }
+}
+
 /* =========================================================
    Landing Page Animations
    首页沉浸式动画

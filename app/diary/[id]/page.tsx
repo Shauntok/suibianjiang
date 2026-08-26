@@ -281,11 +281,16 @@ export default function DiaryDetailPage() {
           </div>
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:flex-wrap">
+            <div
+              className={`grid gap-3 md:flex md:flex-wrap ${
+                diary.isOwner ? "grid-cols-1" : "grid-cols-2"
+              }`}
+            >
               <LikeButton
                 postId={diary.id}
                 authorId={diary.author_id}
                 initialCount={diary.likeCount || 0}
+                mobileFullWidth
               />
 
               {!diary.isOwner && (
@@ -294,6 +299,7 @@ export default function DiaryDetailPage() {
                   targetId={diary.id}
                   authorId={diary.author_id}
                   compact
+                  mobileFullWidth
                 />
               )}
 

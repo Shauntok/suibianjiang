@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "node:crypto";
+import { cleanupExpiredDeletedComments } from "@/lib/server/commentCleanup";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
 
     let broadcastsSent = 0;
     let trashedNotificationsDeleted = 0;
+    let expiredCommentsDeleted = 0;
 
     try {
       broadcastsSent = await publishScheduledBroadcasts(now);
@@ -47,12 +49,21 @@ export async function GET(request: Request) {
       console.error("cleanup trashed notifications skipped:", error);
     }
 
+    try {
+      expiredCommentsDeleted = await cleanupExpiredDeletedComments(
+        supabaseAdmin
+      );
+    } catch (error) {
+      console.error("cleanup expired comments skipped:", error);
+    }
+
     return NextResponse.json(
       {
         ok: true,
         announcementsPublished,
         broadcastsSent,
         trashedNotificationsDeleted,
+        expiredCommentsDeleted,
         now,
       },
       { headers: { "Cache-Control": "no-store" } }

@@ -62,10 +62,9 @@ export default function AdminSidebar() {
         .neq("status", "closed");
 
       const { count: commentsCount } = await supabase
-        .from("comments")
-        .select("id", { count: "exact", head: true })
-        .eq("is_hidden", false)
-        .eq("is_deleted", false);
+        .from("comment_moderation_flags")
+        .select("comment_id", { count: "exact", head: true })
+        .eq("status", "pending");
 
       setCounts({
         reports: reportsCount || 0,
@@ -74,7 +73,12 @@ export default function AdminSidebar() {
       });
     }
 
-    fetchAdminData();
+    void fetchAdminData();
+    window.addEventListener("admin-counts-changed", fetchAdminData);
+
+    return () => {
+      window.removeEventListener("admin-counts-changed", fetchAdminData);
+    };
   }, []);
 
   const overviewLinks: AdminLink[] = [

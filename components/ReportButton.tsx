@@ -9,6 +9,7 @@ type Props = {
   authorId?: string;
   compact?: boolean;
   quiet?: boolean;
+  mobileFullWidth?: boolean;
 };
 
 const reasonOptions = [
@@ -33,6 +34,7 @@ export default function ReportButton({
   authorId,
   compact = false,
   quiet = false,
+  mobileFullWidth = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -138,18 +140,22 @@ export default function ReportButton({
   }
 
   return (
-    <div className="inline-flex flex-col items-start gap-2">
+    <div
+      className={`inline-flex flex-col items-start gap-2 ${
+        mobileFullWidth ? "w-full md:w-auto" : ""
+      }`}
+    >
       <button
         type="button"
         onClick={openReportModal}
         disabled={loading}
-        className={
+        className={`${mobileFullWidth ? "w-full md:w-auto" : ""} ${
           quiet
             ? "min-h-11 border-0 bg-transparent px-0 text-xs text-red-200/40 transition hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
             : compact
             ? "rounded-full border border-red-500/20 bg-red-500/[0.05] px-6 py-3 text-center text-sm text-red-200/60 transition hover:border-red-400/30 hover:bg-red-500/[0.1] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-40"
             : "rounded-full border border-red-500/25 bg-red-500/[0.06] px-6 py-3 text-center text-sm text-red-200/70 transition hover:border-red-400/30 hover:bg-red-500/[0.12] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-        }
+        }`}
       >
         {loading ? "提交中..." : "举报"}
       </button>

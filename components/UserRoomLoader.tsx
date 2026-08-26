@@ -156,8 +156,7 @@ export default function UserRoomLoader({
         .eq("status", "published")
         .eq("visibility", "public")
         .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(12),
+        .order("published_at", { ascending: false }),
     ]);
 
     const userBadges = badgesResult.data || [];
@@ -212,7 +211,6 @@ export default function UserRoomLoader({
 
     setPayload({
       profile,
-      activeTab,
       residentTitle,
       levelProgress,
       joinedDays,
@@ -274,5 +272,5 @@ export default function UserRoomLoader({
     );
   }
 
-  return <UserRoomClient {...payload} />;
+  return <UserRoomClient {...payload} activeTab={activeTab} />;
 }

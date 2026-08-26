@@ -602,6 +602,7 @@ export default function PostComments({ postId }: Props) {
       .from("comments")
       .update({
         is_deleted: true,
+        deleted_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", deleteTargetId)

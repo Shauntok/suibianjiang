@@ -8,6 +8,14 @@ type Props = {
 export default function CommentFilters({ filter, setFilter }: Props) {
   const tabs = [
     {
+      key: "today",
+      label: "今日新增",
+    },
+    {
+      key: "flagged",
+      label: "待检查",
+    },
+    {
       key: "active",
       label: "正常评论",
     },
