@@ -1,7 +1,16 @@
-Noto Sans SC variable font
+Noto Sans SC variable font attribution
 
-Source font file: C:\Windows\Fonts\NotoSansSC-VF.ttf
-Copied mechanically into this repository on 2026-08-27.
+Font file name: NotoSansSC-VF.ttf
+Embedded family name: Noto Sans SC
+Embedded subfamily name: Regular
+Embedded full name: Noto Sans SC
+Embedded PostScript name: NotoSansSC-Thin
+Embedded version: Version 2.04;241114210130;non-release
+Embedded copyright: © 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.
+
+Official upstream project: https://github.com/notofonts/noto-cjk
+Binary provenance: copied mechanically from the locally installed Windows font C:\Windows\Fonts\NotoSansSC-VF.ttf on 2026-08-27.
+SHA-256 (assets/fonts/NotoSansSC-VF.ttf): 763146584CF0710223441356B4395E279021B0806C196614377A7A0174AE074A
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 The full license text follows.
