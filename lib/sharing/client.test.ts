@@ -112,6 +112,22 @@ describe("loadStoryFile", () => {
     expect(file.type).toBe("image/png");
   });
 
+  it("passes an optional AbortSignal to the Story request", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Blob(["png-bytes"], { type: "image/png" }), {
+        status: 200,
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loadStoryFile("/api/share-card/diary/42?v=edited", "story.png", controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/share-card/diary/42?v=edited", {
+      signal: controller.signal,
+    });
+  });
+
   it("rejects a response that cannot provide a public Story image", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
 
@@ -188,6 +204,7 @@ describe("downloadStoryFile", () => {
     expect(click).toHaveBeenCalledOnce();
     expect(clickedAnchors[0]?.href).toBe("blob:story");
     expect(clickedAnchors[0]?.download).toBe("story.png");
+    expect(clickedAnchors[0]).not.toBeInTheDocument();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:story");
   });
 

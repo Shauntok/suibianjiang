@@ -14,6 +14,15 @@ import {
 
 type CardState = "loading" | "ready" | "unavailable";
 
+const focusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
 type ShareSheetProps = {
   title: string;
   canonicalUrl: string;
@@ -31,7 +40,10 @@ export default function ShareSheet({
   returnFocusRef,
   onClose,
 }: ShareSheetProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const mountedRef = useRef(false);
+  const operationTokenRef = useRef(0);
   const [cardState, setCardState] = useState<CardState>("loading");
   const [storyFile, setStoryFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
@@ -40,51 +52,91 @@ export default function ShareSheet({
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     const returnFocusTarget = returnFocusRef.current;
+    const storyController = new AbortController();
     let active = true;
 
+    mountedRef.current = true;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      const focusableElements = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector)
+      ).filter((element) => !element.hasAttribute("hidden") && element.tabIndex >= 0);
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements.at(-1);
+      if (!firstElement || !lastElement) return;
+
+      const focusIsOutside = !dialogRef.current.contains(document.activeElement);
+      if (event.shiftKey && (document.activeElement === firstElement || focusIsOutside)) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && (document.activeElement === lastElement || focusIsOutside)) {
+        event.preventDefault();
+        firstElement.focus();
+      }
     }
 
     document.addEventListener("keydown", handleKeyDown);
 
-    loadStoryFile(imageUrl, filename)
+    loadStoryFile(imageUrl, filename, storyController.signal)
       .then((file) => {
         if (!active) return;
         setStoryFile(file);
         setCardState("ready");
       })
-      .catch(() => {
-        if (!active) return;
+      .catch((error: unknown) => {
+        if (!active || isAbortError(error)) return;
         setStoryFile(null);
         setCardState("unavailable");
       });
 
     return () => {
       active = false;
+      storyController.abort();
+      mountedRef.current = false;
+      operationTokenRef.current += 1;
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
       returnFocusTarget?.focus();
     };
   }, [filename, imageUrl, onClose, returnFocusRef]);
 
-  async function handleCopyLink() {
+  function beginOperation() {
+    const token = operationTokenRef.current + 1;
+    operationTokenRef.current = token;
     setMessage("");
+    return token;
+  }
+
+  function isCurrentOperation(token: number) {
+    return mountedRef.current && operationTokenRef.current === token;
+  }
+
+  async function handleCopyLink() {
+    const token = beginOperation();
 
     try {
       const copied = await copyShareText(canonicalUrl);
+      if (!isCurrentOperation(token)) return;
       setMessage(copied ? "链接已经复制。" : "这个装置暂时无法复制链接。");
     } catch {
+      if (!isCurrentOperation(token)) return;
       setMessage("这个装置暂时无法复制链接。");
     }
   }
 
   async function handleShareLink() {
-    setMessage("");
+    const token = beginOperation();
     const outcome = await shareLink({ title, url: canonicalUrl });
+    if (!isCurrentOperation(token)) return;
 
     if (outcome === "shared") setMessage("已打开装置的分享面板。");
     if (outcome === "unsupported") {
@@ -96,12 +148,13 @@ export default function ShareSheet({
   async function handleShareStory() {
     if (!storyFile) return;
 
-    setMessage("");
+    const token = beginOperation();
     const outcome = await shareStoryFile({
       file: storyFile,
       title,
       url: canonicalUrl,
     });
+    if (!isCurrentOperation(token)) return;
 
     if (outcome === "shared") setMessage("已打开装置的图片分享面板。");
     if (outcome === "unsupported") {
@@ -116,23 +169,33 @@ export default function ShareSheet({
   async function handleDownloadStory() {
     if (!storyFile) return;
 
-    setMessage("");
+    const token = beginOperation();
 
     try {
       downloadStoryFile(storyFile);
+    } catch {
+      if (!isCurrentOperation(token)) return;
+      setMessage("Story 图片暂时无法下载，请稍后再试。");
+      return;
+    }
+
+    try {
       const copied = await copyShareText(canonicalUrl);
+      if (!isCurrentOperation(token)) return;
       setMessage(
         copied
           ? "Story 图片已下载，链接也已经复制。"
           : "Story 图片已下载，但链接没有复制。"
       );
     } catch {
-      setMessage("Story 图片暂时无法下载，请稍后再试。");
+      if (!isCurrentOperation(token)) return;
+      setMessage("Story 图片已下载，但链接没有复制。");
     }
   }
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="share-sheet-title"
@@ -243,4 +306,8 @@ export default function ShareSheet({
       </div>
     </div>
   );
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
 }
