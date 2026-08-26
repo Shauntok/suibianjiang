@@ -191,10 +191,12 @@ describe("downloadStoryFile", () => {
     const createObjectURL = vi.fn().mockReturnValue("blob:story");
     const revokeObjectURL = vi.fn();
     const clickedAnchors: HTMLAnchorElement[] = [];
+    const attachedAtClick: boolean[] = [];
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(function (this: HTMLAnchorElement) {
         clickedAnchors.push(this);
+        attachedAtClick.push(document.body.contains(this));
       });
     vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
 
@@ -204,6 +206,7 @@ describe("downloadStoryFile", () => {
     expect(click).toHaveBeenCalledOnce();
     expect(clickedAnchors[0]?.href).toBe("blob:story");
     expect(clickedAnchors[0]?.download).toBe("story.png");
+    expect(attachedAtClick).toEqual([true]);
     expect(clickedAnchors[0]).not.toBeInTheDocument();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:story");
   });

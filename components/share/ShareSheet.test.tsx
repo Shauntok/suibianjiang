@@ -1,4 +1,12 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ShareButton from "@/components/share/ShareButton";
@@ -87,6 +95,39 @@ describe("ShareButton and ShareSheet accessibility", () => {
 
     fireEvent.keyDown(document, { key: "Tab" });
     expect(closeButton).toHaveFocus();
+  });
+
+  it("keeps both Tab directions on the only focusable element", () => {
+    sharing.loadStoryFile.mockReturnValueOnce(new Promise<File>(() => {}));
+    render(<ShareButton {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "分享" }));
+
+    const dialog = screen.getByRole("dialog", { name: "分享这篇故事" });
+    const closeButton = screen.getByRole("button", { name: "关闭分享面板" });
+    for (const button of within(dialog).getAllByRole("button")) {
+      if (button !== closeButton) (button as HTMLButtonElement).disabled = true;
+    }
+
+    expect(fireEvent.keyDown(document, { key: "Tab" })).toBe(false);
+    expect(closeButton).toHaveFocus();
+    expect(fireEvent.keyDown(document, { key: "Tab", shiftKey: true })).toBe(false);
+    expect(closeButton).toHaveFocus();
+  });
+
+  it("prevents Tab escape and focuses the dialog when no controls are focusable", () => {
+    sharing.loadStoryFile.mockReturnValueOnce(new Promise<File>(() => {}));
+    render(<ShareButton {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "分享" }));
+
+    const dialog = screen.getByRole("dialog", { name: "分享这篇故事" });
+    for (const button of within(dialog).getAllByRole("button")) {
+      (button as HTMLButtonElement).disabled = true;
+    }
+
+    expect(fireEvent.keyDown(document, { key: "Tab" })).toBe(false);
+    expect(dialog).toHaveFocus();
+    expect(fireEvent.keyDown(document, { key: "Tab", shiftKey: true })).toBe(false);
+    expect(dialog).toHaveFocus();
   });
 
   it("uses the versioned route and enables Story sharing after the image loads", async () => {

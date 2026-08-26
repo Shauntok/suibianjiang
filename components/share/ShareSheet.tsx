@@ -72,7 +72,11 @@ export default function ShareSheet({
       ).filter((element) => !element.hasAttribute("hidden") && element.tabIndex >= 0);
       const firstElement = focusableElements[0];
       const lastElement = focusableElements.at(-1);
-      if (!firstElement || !lastElement) return;
+      if (!firstElement || !lastElement) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
 
       const focusIsOutside = !dialogRef.current.contains(document.activeElement);
       if (event.shiftKey && (document.activeElement === firstElement || focusIsOutside)) {
@@ -199,6 +203,7 @@ export default function ShareSheet({
       role="dialog"
       aria-modal="true"
       aria-labelledby="share-sheet-title"
+      tabIndex={-1}
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/80 px-0 pt-12 backdrop-blur-sm md:items-center md:px-6 md:py-8"
     >
       <div className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-lg border border-white/10 bg-zinc-950 shadow-2xl shadow-black md:max-w-xl md:rounded-lg">
