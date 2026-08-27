@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ArticleDetailClient from "@/components/articles/ArticleDetailClient";
@@ -44,9 +44,35 @@ vi.mock("@/components/ReportButton", () => ({
   ),
 }));
 
+vi.mock("@/components/share/ShareButton", () => ({
+  default: ({
+    isPublic,
+    isOwner,
+    mobileFullWidth,
+  }: {
+    isPublic: boolean;
+    isOwner: boolean;
+    mobileFullWidth?: boolean;
+  }) => {
+    if (!isPublic && !isOwner) return null;
+
+    return (
+      <button
+        data-testid="article-share"
+        data-mobile-full={mobileFullWidth}
+        data-public={isPublic}
+        disabled={!isPublic}
+      >
+        {isPublic ? "分享" : "公开后可分享"}
+      </button>
+    );
+  },
+}));
+
 const article = {
   id: 10,
   author_id: "author",
+  slug: "test-article",
   title: "测试文章",
   content: "文章内容",
   created_at: "2026-08-26T00:00:00.000Z",
@@ -62,25 +88,42 @@ describe("ArticleDetailClient mobile actions", () => {
     authState.userId = "author";
   });
 
-  it("makes the owner like action full width on mobile", async () => {
+  it("gives a public owner equal like and share columns", async () => {
     render(<ArticleDetailClient initialArticle={article} />);
 
-    const likeButton = await screen.findByTestId("article-like");
-    expect(likeButton).toHaveAttribute("data-mobile-full", "true");
-    expect(likeButton.parentElement).toHaveClass("grid-cols-1");
+    expect(await screen.findByTestId("article-actions")).toHaveClass("grid-cols-2");
+    expect(screen.getByTestId("article-like")).toBeVisible();
+    expect(screen.getByTestId("article-share")).toBeEnabled();
+    expect(screen.getByRole("link", { name: "编辑文章" })).toHaveClass("col-span-full");
   });
 
-  it("uses two equal mobile columns for visitor actions", async () => {
+  it("gives a public visitor like, share and report thirds", async () => {
     authState.userId = "visitor";
     render(<ArticleDetailClient initialArticle={article} />);
 
-    const reportButton = await screen.findByTestId("article-report");
-    const likeButton = screen.getByTestId("article-like");
+    expect(await screen.findByTestId("article-actions")).toHaveClass("grid-cols-3");
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(
+      expect.arrayContaining(["喜欢", "分享", "举报"]),
+    );
+  });
 
-    await waitFor(() => {
-      expect(reportButton).toHaveAttribute("data-mobile-full", "true");
-    });
-    expect(likeButton).toHaveAttribute("data-mobile-full", "true");
-    expect(likeButton.parentElement).toHaveClass("grid-cols-2");
+  it("shows a disabled share action to an owner of unlisted content", async () => {
+    render(
+      <ArticleDetailClient initialArticle={{ ...article, visibility: "unlisted" }} />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "公开后可分享" }),
+    ).toBeDisabled();
+  });
+
+  it("hides share and keeps two columns for an unlisted visitor", async () => {
+    authState.userId = "visitor";
+    render(
+      <ArticleDetailClient initialArticle={{ ...article, visibility: "unlisted" }} />,
+    );
+
+    expect(await screen.findByTestId("article-actions")).toHaveClass("grid-cols-2");
+    expect(screen.queryByTestId("article-share")).not.toBeInTheDocument();
   });
 });

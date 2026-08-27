@@ -8,6 +8,12 @@ import TranslatedMarkdown from "@/components/TranslatedMarkdown";
 import PostComments from "@/components/PostComments";
 import ReportButton from "@/components/ReportButton";
 import LikeButton from "@/components/LikeButton";
+import ShareButton from "@/components/share/ShareButton";
+import {
+  getCanonicalShareUrl,
+  getShareTitle,
+  getShareVersion,
+} from "@/lib/sharing/model";
 
 type ProfileInfo = {
   username: string | null;
@@ -166,6 +172,23 @@ export default function ArticleDetailClient({
 
   const articleDate = article.published_at || article.created_at;
   const isAuthor = article.isAuthor || article.author_id === currentUserId;
+  const isPublic =
+    article.status === "published" && article.visibility === "public";
+  const shareSource = {
+    id: Number(article.id),
+    type: "article" as const,
+    slug: article.slug,
+    title: article.title,
+    content: article.content,
+    createdAt: article.created_at,
+    publishedAt: article.published_at,
+    editedAt: article.edited_at,
+  };
+  const shareTitle = getShareTitle(shareSource);
+  const shareVersion = getShareVersion(shareSource);
+  const canonicalShareUrl = isPublic
+    ? getCanonicalShareUrl(shareSource)
+    : "";
 
   const authorProfile = getProfile(article.profiles);
   const authorHref = authorProfile?.username
@@ -316,8 +339,9 @@ export default function ArticleDetailClient({
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div
+              data-testid="article-actions"
               className={`grid gap-3 md:flex md:flex-wrap ${
-                isAuthor ? "grid-cols-1" : "grid-cols-2"
+                isAuthor || !isPublic ? "grid-cols-2" : "grid-cols-3"
               }`}
             >
               <LikeButton
@@ -326,6 +350,19 @@ export default function ArticleDetailClient({
                 initialCount={article.likeCount || 0}
                 mobileFullWidth
               />
+
+              {(isPublic || isAuthor) && (
+                <ShareButton
+                  postId={article.id}
+                  postType="article"
+                  title={shareTitle}
+                  canonicalUrl={canonicalShareUrl}
+                  version={shareVersion}
+                  isPublic={isPublic}
+                  isOwner={isAuthor}
+                  mobileFullWidth
+                />
+              )}
 
               {!isAuthor && (
                 <ReportButton
@@ -340,7 +377,7 @@ export default function ArticleDetailClient({
               {isAuthor && (
                 <Link
                   href={`/articles/edit/${article.id}`}
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-center text-sm text-white/60 transition hover:border-white/25 hover:text-white"
+                  className="col-span-full rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-center text-sm text-white/60 transition hover:border-white/25 hover:text-white md:col-auto"
                 >
                   编辑文章
                 </Link>
