@@ -1,0 +1,26 @@
+@media (max-width: 767px) {
+  .screen {
+    height: var(--landing-height, 100vh);
+  }
+
+  .memories {
+    height: calc(var(--landing-height, 100vh) * 1.6);
+  }
+
+  .portal {
+    min-height: var(--landing-height, 100vh);
+  }
+
+  /* Native input scrolling must not chase a scroll-animated form rectangle. */
+  .portalCard {
+    transform: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+    transition: none;
+  }
+
+  .portal input,
+  .portal select {
+    font-size: 16px;
+  }
+}

@@ -1,9 +1,10 @@
 "use client";
 
-import { CSSProperties, useEffect, useState } from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import PasswordInput from "@/components/ui/PasswordInput";
+import styles from "./LandingClient.module.css";
 
 const memoryCards = [
   {
@@ -57,6 +58,7 @@ const stars = [
 
 export default function LandingClient() {
   const router = useRouter();
+  const landingRef = useRef<HTMLElement>(null);
 
   const [scrollY, setScrollY] = useState(0);
   const [showLoginDock, setShowLoginDock] = useState(true);
@@ -251,6 +253,29 @@ export default function LandingClient() {
   }
 
   useEffect(() => {
+    const landing = landingRef.current;
+    if (!landing) return;
+    let layoutWidth = 0;
+
+    const updateLayoutHeight = () => {
+      const width = window.innerWidth;
+      if (width === layoutWidth) return;
+      layoutWidth = width;
+
+      // Keyboard/address-bar height changes must not collapse the sections before the form.
+      if (width < 768) {
+        landing.style.setProperty("--landing-height", `${window.innerHeight}px`);
+      } else {
+        landing.style.removeProperty("--landing-height");
+      }
+    };
+
+    updateLayoutHeight();
+    window.addEventListener("resize", updateLayoutHeight);
+    return () => window.removeEventListener("resize", updateLayoutHeight);
+  }, []);
+
+  useEffect(() => {
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual";
     }
@@ -284,9 +309,9 @@ export default function LandingClient() {
   }, []);
 
   return (
-    <main className="w-full overflow-x-clip bg-black text-white">
+    <main ref={landingRef} className="w-full overflow-x-clip bg-black text-white">
       <section
-        className="relative flex h-screen items-center justify-center overflow-hidden transition-all duration-300"
+        className={`${styles.screen} relative flex h-screen items-center justify-center overflow-hidden transition-all duration-300`}
         style={{
           opacity: Math.max(1 - scrollY / 900, 0),
           transform: `scale(${1 + scrollY * 0.00012})`,
@@ -395,8 +420,8 @@ export default function LandingClient() {
         </div>
       </section>
 
-      <section className="relative h-[160vh] bg-black">
-        <div className="sticky top-0 flex h-screen items-center justify-center overflow-hidden">
+      <section className={`${styles.memories} relative h-[160vh] bg-black`}>
+        <div className={`${styles.screen} sticky top-0 flex h-screen items-center justify-center overflow-hidden`}>
           <div
             className="absolute left-1/2 top-1/2 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/[0.035] blur-3xl"
             style={{
@@ -435,7 +460,7 @@ export default function LandingClient() {
 
       <section
         id="portal"
-        className="relative flex min-h-screen items-start justify-center overflow-hidden px-6 py-24 md:items-center md:py-20"
+        className={`${styles.portal} relative flex min-h-screen items-start justify-center overflow-hidden px-6 py-24 md:items-center md:py-20`}
       >
         <div
           className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/[0.035] blur-3xl"
@@ -449,7 +474,7 @@ export default function LandingClient() {
 
         <div
           id="portal-card"
-          className="relative z-10 grid w-full max-w-5xl gap-6 transition-all duration-1000 md:grid-cols-2"
+          className={`${styles.portalCard} relative z-10 grid w-full max-w-5xl gap-6 transition-all duration-1000 md:grid-cols-2`}
           style={{
             opacity: Math.min(Math.max((scrollY - 1550) / 500, 0), 1),
             transform: `scale(${
