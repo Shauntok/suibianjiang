@@ -47,4 +47,6 @@ Workspace: `.worktrees/social-sharing`
 - No claim that a website can automatically publish to Instagram Story. Saved or externally shared PNGs cannot be revoked.
 - Owner layouts still need a signed-in browser visual pass; automated tests cover their exact order and width classes.
 - Worktree dependencies reuse the main node_modules junction; Turbopack rejects that setup, so webpack was used. Existing lockfile npm-ci issue was not changed.
-- Not merged, pushed or deployed. Local production preview runs on 127.0.0.1:3001.
+- Merged locally into main on 2026-08-27 at 93f1022; post-merge suite passed all 265 tests. Not pushed or deployed.
+- Temporary worktree and its preview were retired after integration; ignored verification artifacts were archived under .superpowers/social-sharing-verification-20260827.
+- The existing port-3000 process returned an empty 404 for the public diary share image after integration. It was left untouched. Starting another main-directory development server on port 3001 was refused by Next.js's existing-server guard; restart the original dev server before repeating this local smoke test.
