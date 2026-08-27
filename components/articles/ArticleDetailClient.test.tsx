@@ -97,7 +97,9 @@ describe("ArticleDetailClient mobile actions", () => {
   it("gives a public owner equal like and share columns", async () => {
     render(<ArticleDetailClient initialArticle={article} />);
 
-    expect(await screen.findByTestId("article-actions")).toHaveClass("grid-cols-2");
+    const actionGrid = await screen.findByTestId("article-actions");
+    expect(actionGrid).toHaveClass("grid-cols-2");
+    expect(getDirectActionButtonLabels(actionGrid)).toEqual(["喜欢", "分享"]);
     expect(screen.getByTestId("article-like")).toBeVisible();
     expect(screen.getByTestId("article-like")).toHaveAttribute(
       "data-mobile-full",
@@ -133,6 +135,7 @@ describe("ArticleDetailClient mobile actions", () => {
 
     const actionGrid = await screen.findByTestId("article-actions");
     expect(actionGrid).toHaveClass("grid-cols-2");
+    expect(getDirectActionButtonLabels(actionGrid)).toEqual(["喜欢", "公开后可分享"]);
     expect(within(actionGrid).getByTestId("article-like")).toHaveAttribute(
       "data-mobile-full",
       "true",

@@ -1,6 +1,6 @@
-Noto Sans SC variable font attribution
+Noto Sans SC static font attribution
 
-Font file name: NotoSansSC-VF.ttf
+Font file name: NotoSansSC-Regular.ttf
 Embedded family name: Noto Sans SC
 Embedded subfamily name: Regular
 Embedded full name: Noto Sans SC
@@ -11,6 +11,9 @@ Embedded copyright: © 2014-2021 Adobe (http://www.adobe.com/), with Reserved Fo
 Official upstream project: https://github.com/notofonts/noto-cjk
 Binary provenance: copied mechanically from the locally installed Windows font C:\Windows\Fonts\NotoSansSC-VF.ttf on 2026-08-27.
 SHA-256 (assets/fonts/NotoSansSC-VF.ttf): 763146584CF0710223441356B4395E279021B0806C196614377A7A0174AE074A
+Modification: instantiated at wght=400 using FontTools 4.63.0 on 2026-08-27.
+The static instance retains the original glyph coverage and license.
+SHA-256 (assets/fonts/NotoSansSC-Regular.ttf): 7E6766DB04404DE7E0977B4BC6295DB1D9F2728F79C6474389DF1951D88729AB
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 The full license text follows.

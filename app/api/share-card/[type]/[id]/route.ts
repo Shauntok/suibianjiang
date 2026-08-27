@@ -6,11 +6,14 @@ type RouteContext = {
   params: Promise<{ type: string; id: string }>;
 };
 
-const CACHE_CONTROL =
-  "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800";
+// Recheck visibility on every request, including when old share links are reused.
+const CACHE_CONTROL = "private, no-store";
 
 function notFound() {
-  return new Response(null, { status: 404 });
+  return new Response(null, {
+    status: 404,
+    headers: { "Cache-Control": CACHE_CONTROL },
+  });
 }
 
 export async function GET(_request: Request, { params }: RouteContext) {

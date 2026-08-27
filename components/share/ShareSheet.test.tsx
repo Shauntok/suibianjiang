@@ -46,6 +46,10 @@ const defaultProps = {
 };
 
 beforeEach(() => {
+  vi.stubGlobal("URL", Object.assign(URL, {
+    createObjectURL: vi.fn(() => "blob:story-preview"),
+    revokeObjectURL: vi.fn(),
+  }));
   sharing.copyShareText.mockResolvedValue(true);
   sharing.loadStoryFile.mockResolvedValue(storyFile);
   sharing.shareLink.mockResolvedValue("shared");
@@ -56,20 +60,42 @@ afterEach(() => {
   cleanup();
   document.body.style.overflow = "";
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("ShareButton and ShareSheet accessibility", () => {
+  it("previews the prepared file and releases its URL when closed", async () => {
+    render(<ShareButton {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "分享" }));
+    expect(await screen.findByAltText("凌晨四点 Story 分享图预览")).toHaveAttribute("src", "blob:story-preview");
+    expect(URL.createObjectURL).toHaveBeenCalledWith(storyFile);
+    fireEvent.click(screen.getByRole("button", { name: "关闭分享面板" }));
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:story-preview");
+  });
+
+  it("stops sharing when the server says the content is no longer public", async () => {
+    sharing.loadStoryFile.mockRejectedValueOnce(new Error("share-card-not-public"));
+    render(<ShareButton {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "分享" }));
+    expect(await screen.findByText("这篇内容目前不能分享")).toBeVisible();
+    expect(screen.getByRole("button", { name: "复制链接" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "分享到其他应用" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "分享 Story 图片" })).not.toBeInTheDocument();
+  });
   it("opens an accessible dialog, locks scrolling, and restores focus on Escape", async () => {
     document.body.style.overflow = "clip";
-    render(<ShareButton {...defaultProps} mobileFullWidth />);
+    const { container } = render(<ShareButton {...defaultProps} mobileFullWidth />);
 
     const trigger = screen.getByRole("button", { name: "分享" });
     expect(trigger).toHaveClass("w-full", "md:w-auto");
+    expect(trigger).toHaveClass("rounded-full");
     fireEvent.click(trigger);
 
     const dialog = screen.getByRole("dialog", { name: "分享这篇故事" });
     const closeButton = screen.getByRole("button", { name: "关闭分享面板" });
     expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(container).not.toContainElement(dialog);
+    expect(document.body).toContainElement(dialog);
     await waitFor(() => expect(closeButton).toHaveFocus());
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
     expect(document.body.style.overflow).toBe("hidden");

@@ -1,16 +1,21 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 import { ImageResponse } from "next/og";
 
 import type { ShareCardData } from "@/lib/server/share-card";
 
-const notoSansSc = readFile(
-  new URL("../../assets/fonts/NotoSansSC-VF.ttf", import.meta.url),
-);
+let assets: Promise<[Buffer, Buffer]> | undefined;
 
 export async function renderShareCardImage(data: ShareCardData) {
   const path = new URL(data.canonicalUrl).pathname;
-  const font = await notoSansSc;
+  const [font, icon] = await (assets ??= Promise.all([
+    readFile(join(process.cwd(), "assets/fonts/NotoSansSC-Regular.ttf")),
+    readFile(join(process.cwd(), "app/icon.png")),
+  ]).catch((error) => {
+    assets = undefined;
+    throw error;
+  }));
 
   return new ImageResponse(
     <div
@@ -64,7 +69,9 @@ export async function renderShareCardImage(data: ShareCardData) {
             color: "rgba(255, 255, 255, 0.62)",
           }}
         >
-          <span style={{ display: "flex" }}>▱</span>
+          {/* ImageResponse uses plain image nodes, not the Next.js image optimizer. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`data:image/png;base64,${icon.toString("base64")}`} width={48} height={48} alt="" />
           <span style={{ display: "flex" }}>小时代</span>
         </div>
 
@@ -86,6 +93,7 @@ export async function renderShareCardImage(data: ShareCardData) {
             display: "-webkit-box",
             WebkitBoxOrient: "vertical",
             WebkitLineClamp: 3,
+            textOverflow: "ellipsis",
             overflow: "hidden",
             fontSize: 76,
             lineHeight: 1.28,
@@ -97,13 +105,17 @@ export async function renderShareCardImage(data: ShareCardData) {
 
         <div
           style={{
-            display: "flex",
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 2,
+            textOverflow: "ellipsis",
+            overflow: "hidden",
             marginTop: 34,
             fontSize: 29,
             color: "rgba(255, 255, 255, 0.5)",
           }}
         >
-          由 {data.authorName} 留下
+          {`由 ${data.authorName} 留下`}
         </div>
 
         <div
@@ -122,6 +134,7 @@ export async function renderShareCardImage(data: ShareCardData) {
             display: "-webkit-box",
             WebkitBoxOrient: "vertical",
             WebkitLineClamp: 6,
+            textOverflow: "ellipsis",
             overflow: "hidden",
             fontSize: 38,
             lineHeight: 1.75,

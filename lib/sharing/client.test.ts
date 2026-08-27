@@ -132,7 +132,7 @@ describe("loadStoryFile", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
 
     await expect(loadStoryFile("/missing", "story.png")).rejects.toThrow(
-      "share-card-unavailable"
+      "share-card-not-public"
     );
   });
 });

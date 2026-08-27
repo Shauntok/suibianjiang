@@ -2,6 +2,7 @@
 
 import { Share2 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import ShareSheet from "@/components/share/ShareSheet";
 import type { SharePostType } from "@/lib/sharing/model";
@@ -39,7 +40,7 @@ export default function ShareButton({
       <button
         type="button"
         disabled
-        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-4 text-sm text-white/30 disabled:cursor-not-allowed ${widthClass}`}
+        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/30 disabled:cursor-not-allowed ${widthClass}`}
       >
         <Share2 aria-hidden="true" className="h-4 w-4" />
         公开后可分享
@@ -55,13 +56,13 @@ export default function ShareButton({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
-        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 text-sm text-white/65 transition hover:border-white/25 hover:bg-white/[0.07] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 ${widthClass}`}
+        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white/65 transition hover:border-white/25 hover:bg-white/[0.07] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 ${widthClass}`}
       >
         <Share2 aria-hidden="true" className="h-4 w-4" />
         分享
       </button>
 
-      {open && (
+      {open && createPortal(
         <ShareSheet
           title={title}
           canonicalUrl={canonicalUrl}
@@ -69,7 +70,8 @@ export default function ShareButton({
           filename={`our-little-age-${postType}-${postId}-story.png`}
           returnFocusRef={triggerRef}
           onClose={closeSheet}
-        />
+        />,
+        document.body,
       )}
     </>
   );

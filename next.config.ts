@@ -19,6 +19,9 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  outputFileTracingIncludes: {
+    "/api/share-card/*/*": ["./assets/fonts/NotoSansSC-Regular.ttf", "./app/icon.png"],
+  },
   async headers() {
     return [
       {

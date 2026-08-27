@@ -44,6 +44,7 @@ export async function shareLink({
 
 export async function loadStoryFile(url: string, filename: string, signal?: AbortSignal) {
   const response = await (signal ? fetch(url, { signal }) : fetch(url));
+  if (response.status === 404) throw new Error("share-card-not-public");
   if (!response.ok) throw new Error("share-card-unavailable");
 
   return new File([await response.blob()], filename, { type: "image/png" });

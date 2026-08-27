@@ -8,6 +8,8 @@ import TranslatedMarkdown from "@/components/TranslatedMarkdown";
 import PostComments from "@/components/PostComments";
 import ReportButton from "@/components/ReportButton";
 import LikeButton from "@/components/LikeButton";
+import ShareButton from "@/components/share/ShareButton";
+import { getCanonicalShareUrl, getShareTitle, getShareVersion } from "@/lib/sharing/model";
 
 type ProfileInfo = {
   username: string | null;
@@ -151,6 +153,11 @@ export default function DiaryDetailPage() {
   const diaryDate = diary.published_at || diary.created_at;
   const canComment =
     diary.visibility === "public" && diary.status === "published";
+  const shareSource = {
+    id: Number(diary.id), type: "diary" as const, slug: null,
+    title: diary.title, content: diary.content, createdAt: diary.created_at,
+    publishedAt: diary.published_at, editedAt: diary.edited_at,
+  };
 
   const authorProfile = diary.authorProfile as ProfileInfo | null;
   const authorHref = authorProfile?.username
@@ -282,8 +289,9 @@ export default function DiaryDetailPage() {
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div
+              data-testid="diary-actions"
               className={`grid gap-3 md:flex md:flex-wrap ${
-                diary.isOwner ? "grid-cols-1" : "grid-cols-2"
+                diary.isOwner || !canComment ? "grid-cols-2" : "grid-cols-3"
               }`}
             >
               <LikeButton
@@ -292,6 +300,19 @@ export default function DiaryDetailPage() {
                 initialCount={diary.likeCount || 0}
                 mobileFullWidth
               />
+
+              {(canComment || diary.isOwner) && (
+                <ShareButton
+                  postId={diary.id}
+                  postType="diary"
+                  title={getShareTitle(shareSource)}
+                  canonicalUrl={getCanonicalShareUrl(shareSource)}
+                  version={getShareVersion(shareSource)}
+                  isPublic={canComment}
+                  isOwner={diary.isOwner}
+                  mobileFullWidth
+                />
+              )}
 
               {!diary.isOwner && (
                 <ReportButton
@@ -306,7 +327,7 @@ export default function DiaryDetailPage() {
               {diary.isOwner && (
                 <Link
                   href={`/diary/${diary.id}/edit`}
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-center text-sm text-white/60 transition hover:border-white/25 hover:text-white"
+                  className="col-span-full rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-center text-sm text-white/60 transition hover:border-white/25 hover:text-white md:col-auto"
                 >
                   编辑日记
                 </Link>

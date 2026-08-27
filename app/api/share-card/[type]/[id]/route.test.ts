@@ -19,15 +19,14 @@ const publicCard = {
   canonicalUrl: "https://www.ourlittleage.com/articles/late-night-letter",
 };
 
-const cacheControl =
-  "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800";
+const cacheControl = "private, no-store";
 
 describe("GET /api/share-card/[type]/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("returns the rendered PNG with the exact public cache policy", async () => {
+  it("does not cache a PNG that may later become private", async () => {
     loadPublicShareCardData.mockResolvedValue(publicCard);
     renderShareCardImage.mockReturnValue(
       new Response(new Uint8Array([137, 80, 78, 71]), {
@@ -79,7 +78,7 @@ describe("GET /api/share-card/[type]/[id]", () => {
 
   it("embeds the local CJK font in the image response", async () => {
     const fontData = new Uint8Array([78, 111, 116, 111]).buffer;
-    const readFile = vi.fn().mockResolvedValue(fontData);
+    const readFile = vi.fn().mockResolvedValueOnce(fontData).mockResolvedValueOnce(Buffer.from("icon"));
     const fetch = vi.fn();
     const imageResponse = vi.fn(function ImageResponse() {
       return new Response(null);
@@ -100,11 +99,11 @@ describe("GET /api/share-card/[type]/[id]", () => {
 
       await renderShareCardImage(publicCard);
 
-      expect(readFile).toHaveBeenCalledTimes(1);
+      expect(readFile).toHaveBeenCalledTimes(2);
       const [fontPath] = readFile.mock.calls[0];
-      expect(fontPath).toBeInstanceOf(URL);
-      expect((fontPath as URL).pathname).toContain(
-        "/assets/fonts/NotoSansSC-VF.ttf",
+      expect(typeof fontPath).toBe("string");
+      expect(fontPath.replaceAll("\\", "/")).toContain(
+        "/assets/fonts/NotoSansSC-Regular.ttf",
       );
       expect(fetch).not.toHaveBeenCalled();
       expect(imageResponse).toHaveBeenCalledWith(

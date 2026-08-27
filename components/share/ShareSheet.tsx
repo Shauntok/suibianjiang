@@ -12,7 +12,7 @@ import {
   shareStoryFile,
 } from "@/lib/sharing/client";
 
-type CardState = "loading" | "ready" | "unavailable";
+type CardState = "loading" | "ready" | "unavailable" | "not-public";
 
 const focusableSelector = [
   "a[href]",
@@ -46,6 +46,7 @@ export default function ShareSheet({
   const operationTokenRef = useRef(0);
   const [cardState, setCardState] = useState<CardState>("loading");
   const [storyFile, setStoryFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
   const [message, setMessage] = useState("");
   const [showDownload, setShowDownload] = useState(false);
 
@@ -54,6 +55,7 @@ export default function ShareSheet({
     const returnFocusTarget = returnFocusRef.current;
     const storyController = new AbortController();
     let active = true;
+    let objectUrl: string | undefined;
 
     mountedRef.current = true;
     document.body.style.overflow = "hidden";
@@ -93,18 +95,21 @@ export default function ShareSheet({
     loadStoryFile(imageUrl, filename, storyController.signal)
       .then((file) => {
         if (!active) return;
+        objectUrl = URL.createObjectURL(file);
+        setPreviewUrl(objectUrl);
         setStoryFile(file);
         setCardState("ready");
       })
       .catch((error: unknown) => {
         if (!active || isAbortError(error)) return;
         setStoryFile(null);
-        setCardState("unavailable");
+        setCardState(error instanceof Error && error.message === "share-card-not-public" ? "not-public" : "unavailable");
       });
 
     return () => {
       active = false;
       storyController.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
       mountedRef.current = false;
       operationTokenRef.current += 1;
       document.removeEventListener("keydown", handleKeyDown);
@@ -204,7 +209,7 @@ export default function ShareSheet({
       aria-modal="true"
       aria-labelledby="share-sheet-title"
       tabIndex={-1}
-      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/80 px-0 pt-12 backdrop-blur-sm md:items-center md:px-6 md:py-8"
+      className="fixed inset-0 z-[150] flex items-end justify-center bg-black/80 px-0 pt-12 backdrop-blur-sm md:items-center md:px-6 md:py-8"
     >
       <div className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-lg border border-white/10 bg-zinc-950 shadow-2xl shadow-black md:max-w-xl md:rounded-lg">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
@@ -235,7 +240,7 @@ export default function ShareSheet({
               )}
               {cardState === "ready" && (
                 <Image
-                  src={imageUrl}
+                  src={previewUrl}
                   alt={`${title} Story 分享图预览`}
                   fill
                   sizes="(min-width: 768px) 168px, 144px"
@@ -243,9 +248,9 @@ export default function ShareSheet({
                   className="object-contain"
                 />
               )}
-              {cardState === "unavailable" && (
+              {(cardState === "unavailable" || cardState === "not-public") && (
                 <div className="flex h-full items-center justify-center px-3 text-center text-xs leading-5 text-white/35">
-                  Story 图片暂时无法生成
+                  {cardState === "not-public" ? "这篇内容目前不能分享" : "Story 图片暂时无法生成"}
                 </div>
               )}
             </div>
@@ -258,6 +263,7 @@ export default function ShareSheet({
             <button
               type="button"
               onClick={handleCopyLink}
+              disabled={cardState === "not-public"}
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 text-sm text-white/70 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
             >
               <Copy aria-hidden="true" className="h-4 w-4" />
@@ -267,6 +273,7 @@ export default function ShareSheet({
             <button
               type="button"
               onClick={handleShareLink}
+              disabled={cardState === "not-public"}
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 text-sm text-white/70 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
             >
               <Send aria-hidden="true" className="h-4 w-4" />
