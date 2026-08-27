@@ -30,7 +30,8 @@ async function fetchDiaryPosts(): Promise<DiaryPost[]> {
       ascending: false,
     });
 
-  if (error || !data) return [];
+  if (error) throw error;
+  if (!data) throw new Error("Diary query returned no data");
 
   const authorIds = Array.from(
     new Set(data.map((post: any) => post.author_id).filter(Boolean))
@@ -98,7 +99,15 @@ async function fetchDiaryPosts(): Promise<DiaryPost[]> {
 }
 
 export default async function PublicDiaryPage() {
-  const posts = await fetchDiaryPosts();
+  const posts = await fetchDiaryPosts().catch((error) => {
+    console.error("[diary-space] Failed to load public diaries", error);
+    return null;
+  });
 
-  return <DiariesSpaceClient initialPosts={posts} />;
+  return (
+    <DiariesSpaceClient
+      initialPosts={posts ?? []}
+      initialLoadFailed={posts === null}
+    />
+  );
 }

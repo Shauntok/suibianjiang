@@ -340,7 +340,7 @@ export default function ArticleDetailClient({
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div
               data-testid="article-actions"
-              className={`grid gap-3 md:flex md:flex-wrap ${
+              className={`grid gap-2 md:flex md:flex-wrap md:gap-3 ${
                 isAuthor || !isPublic ? "grid-cols-2" : "grid-cols-3"
               }`}
             >

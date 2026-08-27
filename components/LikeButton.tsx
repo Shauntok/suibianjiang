@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Heart } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { formatCompactCount } from "@/lib/format-count";
+import styles from "@/components/PostActionButton.module.css";
 
 type Props = {
   postId: number;
@@ -162,15 +165,17 @@ export default function LikeButton({
   return (
     <div
       className={`relative inline-flex items-start ${
-        mobileFullWidth ? "w-full md:w-auto" : ""
+        mobileFullWidth ? `w-full md:w-auto ${styles.slot}` : ""
       }`}
     >
       <button
         type="button"
         onClick={toggleLike}
         disabled={loading}
+        aria-pressed={liked}
+        aria-label={`${liked ? "❤️ 已喜欢" : "🤍 喜欢"} ${likeCount}`}
         className={`rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
-          mobileFullWidth ? "w-full md:w-auto" : ""
+          mobileFullWidth ? `w-full md:w-auto ${styles.action}` : ""
         } ${
           compact ? "px-5 py-2.5 text-sm" : "px-5 py-3 text-sm"
         } ${
@@ -179,7 +184,18 @@ export default function LikeButton({
             : "border-white/10 bg-white/[0.04] text-white/45 hover:border-pink-500/25 hover:text-pink-100"
         }`}
       >
-        {liked ? "❤️ 已喜欢" : "🤍 喜欢"} {likeCount}
+        {mobileFullWidth ? (
+          <>
+            <span aria-hidden="true" data-mobile-like className={styles.mobileLike}>
+              <Heart aria-hidden="true" className={styles.heart} fill={liked ? "currentColor" : "none"} />
+              <span>{liked && <span className={styles.likedPrefix}>已</span>}喜欢</span>
+              <span className={styles.count} title={String(likeCount)}>{formatCompactCount(likeCount)}</span>
+            </span>
+            <span aria-hidden="true" data-desktop-like className={styles.desktopLike}>
+              {liked ? "❤️ 已喜欢" : "🤍 喜欢"} {likeCount}
+            </span>
+          </>
+        ) : <>{liked ? "❤️ 已喜欢" : "🤍 喜欢"} {likeCount}</>}
       </button>
 
       {message && (

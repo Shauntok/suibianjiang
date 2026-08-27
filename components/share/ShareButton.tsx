@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 
 import ShareSheet from "@/components/share/ShareSheet";
 import type { SharePostType } from "@/lib/sharing/model";
+import styles from "@/components/PostActionButton.module.css";
 
 export type ShareButtonProps = {
   postId: string | number;
@@ -31,7 +32,7 @@ export default function ShareButton({
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeSheet = useCallback(() => setOpen(false), []);
-  const widthClass = mobileFullWidth ? "w-full md:w-auto" : "";
+  const widthClass = mobileFullWidth ? `w-full md:w-auto ${styles.action}` : "";
 
   if (!isPublic) {
     if (!isOwner) return null;

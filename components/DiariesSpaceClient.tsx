@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 
 type ProfileInfo = {
   username: string | null;
@@ -34,8 +35,10 @@ function getExcerpt(content: string) {
 
 export default function DiariesSpaceClient({
   initialPosts,
+  initialLoadFailed = false,
 }: {
   initialPosts: DiaryPost[];
+  initialLoadFailed?: boolean;
 }) {
   const router = useRouter();
 
@@ -126,7 +129,24 @@ export default function DiariesSpaceClient({
           </div>
         </header>
 
-        {initialPosts.length === 0 && (
+        {initialLoadFailed && (
+          <div role="alert" className="py-8 text-center md:py-14">
+            <p className="text-xl text-white/70">日记暂时加载失败</p>
+            <p className="mt-4 text-sm leading-8 text-white/45">
+              暂时无法读取日记，请稍后重试。
+            </p>
+            <button
+              type="button"
+              onClick={() => router.refresh()}
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-6 py-3 text-sm text-white/70 transition hover:border-white/25 hover:text-white"
+            >
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              重新加载
+            </button>
+          </div>
+        )}
+
+        {!initialLoadFailed && initialPosts.length === 0 && (
           <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-8 text-center backdrop-blur-2xl md:rounded-[2.5rem] md:p-14">
             <p className="text-xl text-white/55">今晚还没有人留下日记。</p>
 
@@ -143,7 +163,7 @@ export default function DiariesSpaceClient({
           </div>
         )}
 
-        {initialPosts.length > 0 && (
+        {!initialLoadFailed && initialPosts.length > 0 && (
           <>
             <div className="space-y-4 md:space-y-6">
               {visiblePosts.map((post) => {

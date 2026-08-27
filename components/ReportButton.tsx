@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import styles from "@/components/PostActionButton.module.css";
 
 type Props = {
   targetType: "post" | "comment" | "user";
@@ -142,14 +143,14 @@ export default function ReportButton({
   return (
     <div
       className={`inline-flex flex-col items-start gap-2 ${
-        mobileFullWidth ? "w-full md:w-auto" : ""
+        mobileFullWidth ? `w-full md:w-auto ${styles.slot}` : ""
       }`}
     >
       <button
         type="button"
         onClick={openReportModal}
         disabled={loading}
-        className={`${mobileFullWidth ? "w-full md:w-auto" : ""} ${
+        className={`${mobileFullWidth ? `w-full md:w-auto ${styles.action}` : ""} ${
           quiet
             ? "min-h-11 border-0 bg-transparent px-0 text-xs text-red-200/40 transition hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
             : compact
