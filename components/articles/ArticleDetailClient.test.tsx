@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ArticleDetailClient from "@/components/articles/ArticleDetailClient";
@@ -83,6 +83,12 @@ const article = {
   profiles: { username: "系小卓呀", avatar_url: null },
 };
 
+function getDirectActionButtonLabels(actionGrid: HTMLElement) {
+  return Array.from(actionGrid.querySelectorAll(":scope > button")).map(
+    (button) => button.textContent,
+  );
+}
+
 describe("ArticleDetailClient mobile actions", () => {
   beforeEach(() => {
     authState.userId = "author";
@@ -93,7 +99,15 @@ describe("ArticleDetailClient mobile actions", () => {
 
     expect(await screen.findByTestId("article-actions")).toHaveClass("grid-cols-2");
     expect(screen.getByTestId("article-like")).toBeVisible();
+    expect(screen.getByTestId("article-like")).toHaveAttribute(
+      "data-mobile-full",
+      "true",
+    );
     expect(screen.getByTestId("article-share")).toBeEnabled();
+    expect(screen.getByTestId("article-share")).toHaveAttribute(
+      "data-mobile-full",
+      "true",
+    );
     expect(screen.getByRole("link", { name: "编辑文章" })).toHaveClass("col-span-full");
   });
 
@@ -101,10 +115,15 @@ describe("ArticleDetailClient mobile actions", () => {
     authState.userId = "visitor";
     render(<ArticleDetailClient initialArticle={article} />);
 
-    expect(await screen.findByTestId("article-actions")).toHaveClass("grid-cols-3");
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(
-      expect.arrayContaining(["喜欢", "分享", "举报"]),
-    );
+    const actionGrid = await screen.findByTestId("article-actions");
+    expect(actionGrid).toHaveClass("grid-cols-3");
+    expect(getDirectActionButtonLabels(actionGrid)).toEqual(["喜欢", "分享", "举报"]);
+    for (const testId of ["article-like", "article-share", "article-report"]) {
+      expect(within(actionGrid).getByTestId(testId)).toHaveAttribute(
+        "data-mobile-full",
+        "true",
+      );
+    }
   });
 
   it("shows a disabled share action to an owner of unlisted content", async () => {
@@ -112,9 +131,16 @@ describe("ArticleDetailClient mobile actions", () => {
       <ArticleDetailClient initialArticle={{ ...article, visibility: "unlisted" }} />,
     );
 
+    const actionGrid = await screen.findByTestId("article-actions");
+    expect(actionGrid).toHaveClass("grid-cols-2");
+    expect(within(actionGrid).getByTestId("article-like")).toHaveAttribute(
+      "data-mobile-full",
+      "true",
+    );
     expect(
-      await screen.findByRole("button", { name: "公开后可分享" }),
+      within(actionGrid).getByRole("button", { name: "公开后可分享" }),
     ).toBeDisabled();
+    expect(screen.getByRole("link", { name: "编辑文章" })).toHaveClass("col-span-full");
   });
 
   it("hides share and keeps two columns for an unlisted visitor", async () => {
@@ -123,7 +149,17 @@ describe("ArticleDetailClient mobile actions", () => {
       <ArticleDetailClient initialArticle={{ ...article, visibility: "unlisted" }} />,
     );
 
-    expect(await screen.findByTestId("article-actions")).toHaveClass("grid-cols-2");
-    expect(screen.queryByTestId("article-share")).not.toBeInTheDocument();
+    const actionGrid = await screen.findByTestId("article-actions");
+    expect(actionGrid).toHaveClass("grid-cols-2");
+    expect(getDirectActionButtonLabels(actionGrid)).toEqual(["喜欢", "举报"]);
+    expect(within(actionGrid).getByTestId("article-like")).toHaveAttribute(
+      "data-mobile-full",
+      "true",
+    );
+    expect(within(actionGrid).getByTestId("article-report")).toHaveAttribute(
+      "data-mobile-full",
+      "true",
+    );
+    expect(within(actionGrid).queryByTestId("article-share")).not.toBeInTheDocument();
   });
 });
