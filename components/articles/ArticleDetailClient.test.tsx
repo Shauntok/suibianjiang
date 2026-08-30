@@ -28,6 +28,16 @@ vi.mock("@/components/PostComments", () => ({
   default: () => <div>comments</div>,
 }));
 
+vi.mock("@/components/views/PostViewTracker", () => ({
+  default: ({ postId, eligible }: { postId: number; eligible: boolean }) => (
+    <div
+      data-testid="post-view-tracker"
+      data-post-id={postId}
+      data-eligible={eligible}
+    />
+  ),
+}));
+
 vi.mock("@/components/LikeButton", () => ({
   default: ({ mobileFullWidth }: { mobileFullWidth?: boolean }) => (
     <button data-testid="article-like" data-mobile-full={mobileFullWidth}>
@@ -71,6 +81,7 @@ vi.mock("@/components/share/ShareButton", () => ({
 
 const article = {
   id: 10,
+  type: "article",
   author_id: "author",
   slug: "test-article",
   title: "测试文章",
@@ -79,9 +90,58 @@ const article = {
   published_at: "2026-08-26T00:00:00.000Z",
   visibility: "public",
   status: "published",
+  deleted_at: null,
   likeCount: 1,
   profiles: { username: "系小卓呀", avatar_url: null },
 };
+
+describe("ArticleDetailClient view tracking", () => {
+  beforeEach(() => {
+    authState.userId = "author";
+  });
+
+  it.each([
+    ["article", "published", "public", null, true],
+    ["article", "published", "public", undefined, true],
+    ["article", "published", "unlisted", null, false],
+    ["article", "published", "private", null, false],
+    ["article", "published", "hidden", null, false],
+    ["article", "draft", "public", null, false],
+    ["article", "published", "public", "2026-08-29T00:00:00.000Z", false],
+    ["diary", "published", "public", null, false],
+  ])(
+    "wires tracking for %s/%s/%s with deleted_at %s",
+    (type, status, visibility, deletedAt, eligible) => {
+      render(
+        <ArticleDetailClient
+          initialArticle={{
+            ...article,
+            type,
+            status,
+            visibility,
+            deleted_at: deletedAt,
+          }}
+        />,
+      );
+
+      expect(screen.getByTestId("post-view-tracker")).toHaveAttribute(
+        "data-post-id",
+        "10",
+      );
+      expect(screen.getByTestId("post-view-tracker")).toHaveAttribute(
+        "data-eligible",
+        String(eligible),
+      );
+    },
+  );
+
+  it("does not render tracking without article content", () => {
+    authState.userId = "";
+    render(<ArticleDetailClient initialArticle={null} />);
+
+    expect(screen.queryByTestId("post-view-tracker")).not.toBeInTheDocument();
+  });
+});
 
 function getDirectActionButtonLabels(actionGrid: HTMLElement) {
   return Array.from(actionGrid.querySelectorAll(":scope > button")).map(

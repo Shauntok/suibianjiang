@@ -9,6 +9,7 @@ import PostComments from "@/components/PostComments";
 import ReportButton from "@/components/ReportButton";
 import LikeButton from "@/components/LikeButton";
 import ShareButton from "@/components/share/ShareButton";
+import PostViewTracker from "@/components/views/PostViewTracker";
 import {
   getCanonicalShareUrl,
   getShareTitle,
@@ -171,6 +172,12 @@ export default function ArticleDetailClient({
   }
 
   const articleDate = article.published_at || article.created_at;
+  const postId = Number(article.id);
+  const trackingEligible =
+    article.type === "article" &&
+    article.status === "published" &&
+    article.visibility === "public" &&
+    (article.deleted_at === null || article.deleted_at === undefined);
   const isAuthor = article.isAuthor || article.author_id === currentUserId;
   const isPublic =
     article.status === "published" && article.visibility === "public";
@@ -197,6 +204,7 @@ export default function ArticleDetailClient({
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-black px-5 pb-24 pt-16 text-white md:px-6 md:py-24">
+      <PostViewTracker postId={postId} eligible={trackingEligible} />
       <div className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-black via-zinc-950 to-black" />
       <div className="pointer-events-none fixed left-1/2 top-1/3 -z-10 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-violet-500/10 blur-3xl md:h-[560px] md:w-[560px]" />
 
