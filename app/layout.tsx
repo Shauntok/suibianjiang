@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 
 import { LanguageProvider } from "@/components/LanguageProvider";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 import SiteShell from "@/components/SiteShell";
 import PageRouterTransition from "@/components/PageRouterTransition";
 import PresenceHeartbeat from "@/components/PresenceHeartbeat";
@@ -91,6 +92,9 @@ export default function RootLayout({
           closeButton
           theme="dark"
           duration={4000}
+        />
+        <GoogleAnalytics
+          measurementId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID}
         />
       </body>
     </html>
