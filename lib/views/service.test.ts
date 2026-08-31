@@ -120,9 +120,14 @@ describe("listEffectivePostViewCounts", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it.each([[0], [-1], [1.5], [Number.MAX_SAFE_INTEGER + 1]])(
+  it.each([
+    { postIds: [0] },
+    { postIds: [-1] },
+    { postIds: [1.5] },
+    { postIds: [Number.MAX_SAFE_INTEGER + 1] },
+  ])(
     "rejects invalid batch IDs %j",
-    async (postIds) => {
+    async ({ postIds }) => {
       await expect(listEffectivePostViewCounts(postIds)).rejects.toThrow(
         /post ID batch/i
       );
