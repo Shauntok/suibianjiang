@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AuthSessionMissingError } from "@supabase/supabase-js";
 
 const { getUser, recordEffectivePostView } = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -99,7 +100,7 @@ describe("POST /api/post-views", () => {
   it("treats a missing auth session as anonymous", async () => {
     getUser.mockResolvedValue({
       data: { user: null },
-      error: new Error("Auth session missing"),
+      error: new AuthSessionMissingError(),
     });
 
     const response = await POST(sameOriginRequest({ postId: 140 }));
@@ -108,6 +109,21 @@ describe("POST /api/post-views", () => {
     expect(recordEffectivePostView).toHaveBeenCalledWith(
       expect.objectContaining({ userId: null })
     );
+  });
+
+  it("fails closed when authentication validation fails", async () => {
+    getUser.mockResolvedValue({
+      data: { user: null },
+      error: new Error("authentication service unavailable"),
+    });
+
+    const response = await POST(sameOriginRequest({ postId: 140 }));
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: "Unable to record post view",
+    });
+    expect(recordEffectivePostView).not.toHaveBeenCalled();
   });
 
   it.each([

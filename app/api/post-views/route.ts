@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isAuthSessionMissingError } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
@@ -54,7 +55,9 @@ export async function POST(request: Request) {
     const supabase = await createSupabaseServerClient();
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+    if (authError && !isAuthSessionMissingError(authError)) throw authError;
     const userId = user?.id ?? null;
     const identity = createViewerIdentity({
       userId,
