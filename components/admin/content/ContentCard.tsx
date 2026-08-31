@@ -1,12 +1,32 @@
 import Link from "next/link";
+import { Eye } from "lucide-react";
+
+export type AdminContentPost = {
+  id: number;
+  type: string | null;
+  status: string | null;
+  visibility: string | null;
+  created_at: string;
+  author_id: string | null;
+  title?: string | null;
+  slug?: string | null;
+  content?: string | null;
+  published_at?: string | null;
+};
+
+type AdminContentAuthor = {
+  username?: string | null;
+} | null | undefined;
 
 type Props = {
-  post: any;
-  author: any;
+  post: AdminContentPost;
+  author: AdminContentAuthor;
   updateVisibility: (id: number, visibility: string) => void;
   softDeletePost: (id: number) => void;
-  getTitle: (post: any) => string;
-  getViewHref: (post: any) => string;
+  getTitle: (post: AdminContentPost) => string;
+  getViewHref: (post: AdminContentPost) => string;
+  viewCount: number | null;
+  viewCountUnavailable: boolean;
 };
 
 export default function ContentCard({
@@ -16,6 +36,8 @@ export default function ContentCard({
   softDeletePost,
   getTitle,
   getViewHref,
+  viewCount,
+  viewCountUnavailable,
 }: Props) {
   return (
     <div
@@ -26,22 +48,37 @@ export default function ContentCard({
         transition hover:border-zinc-600
       "
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300">
-          {post.type === "diary" ? "📔 日记" : "📖 文章"}
-        </span>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300">
+            {post.type === "diary" ? "📔 日记" : "📖 文章"}
+          </span>
 
-        <span className="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-300">
-          {post.status || "unknown"}
-        </span>
+          <span className="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-300">
+            {post.status || "unknown"}
+          </span>
 
-        <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs text-blue-300">
-          {post.visibility || "public"}
-        </span>
+          <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs text-blue-300">
+            {post.visibility || "public"}
+          </span>
 
-        <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-500">
-          ID {post.id}
-        </span>
+          <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-500">
+            ID {post.id}
+          </span>
+        </div>
+
+        {(viewCountUnavailable || viewCount !== null) && (
+          <div className="flex basis-full items-center gap-2 text-xs text-zinc-500 sm:ml-auto sm:basis-auto sm:justify-end">
+            <Eye aria-hidden="true" className="h-4 w-4 shrink-0" />
+            <span>
+              {viewCountUnavailable
+                ? "阅读数据暂不可用"
+                : `${new Intl.NumberFormat("zh-CN", {
+                    maximumFractionDigits: 0,
+                  }).format(viewCount as number)} 次有效阅读`}
+            </span>
+          </div>
+        )}
       </div>
 
       <h2 className="safe-text mt-5 text-2xl font-bold text-white">

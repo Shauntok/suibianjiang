@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import ContentFilters from "@/components/admin/content/ContentFilters";
 import ContentCard from "@/components/admin/content/ContentCard";
+import type { AdminContentPost } from "@/components/admin/content/ContentCard";
 import ContentStats from "@/components/admin/content/ContentStats";
 import ContentSearch from "@/components/admin/content/ContentSearch";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -25,9 +26,25 @@ type ConfirmConfig = {
   action: (() => Promise<void>) | null;
 };
 
+type AdminContentProfile = {
+  id: string;
+  username: string | null;
+  avatar_url: string | null;
+  role: string | null;
+  status: string | null;
+};
+
+const VIEW_COUNT_BATCH_SIZE = 200;
+
 export default function AdminContentPage() {
-  const [posts, setPosts] = useState<any[]>([]);
-  const [profileMap, setProfileMap] = useState<Record<string, any>>({});
+  const [posts, setPosts] = useState<AdminContentPost[]>([]);
+  const [profileMap, setProfileMap] = useState<
+    Record<string, AdminContentProfile>
+  >({});
+  const [viewCounts, setViewCounts] = useState<Record<number, number>>({});
+  const [viewCountUnavailable, setViewCountUnavailable] = useState(false);
+  const requestSequence = useRef(0);
+  const viewCountController = useRef<AbortController | null>(null);
 
   const [filter, setFilter] = useState<ContentFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -49,17 +66,13 @@ export default function AdminContentPage() {
     action: null,
   });
 
-  useEffect(() => {
-    fetchContent();
-  }, []);
-
-  function showMessage(text: string) {
+  const showMessage = useCallback((text: string) => {
     setMessage(text);
 
     window.setTimeout(() => {
       setMessage("");
     }, 3500);
-  }
+  }, []);
 
   function openConfirm(config: ConfirmConfig) {
     setConfirmConfig(config);
@@ -75,7 +88,83 @@ export default function AdminContentPage() {
     setConfirmOpen(false);
   }
 
-  async function fetchContent() {
+  const loadViewCounts = useCallback(async (
+    postIds: number[],
+    requestId: number
+  ) => {
+    setViewCounts({});
+    setViewCountUnavailable(false);
+
+    if (postIds.length === 0) return;
+
+    const controller = new AbortController();
+    viewCountController.current = controller;
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Admin session unavailable");
+      }
+      if (controller.signal.aborted) return;
+
+      const batches: number[][] = [];
+      for (let index = 0; index < postIds.length; index += VIEW_COUNT_BATCH_SIZE) {
+        batches.push(postIds.slice(index, index + VIEW_COUNT_BATCH_SIZE));
+      }
+
+      const batchCounts = await Promise.all(
+        batches.map(async (batchPostIds) => {
+          const response = await fetch("/api/admin/content/view-counts", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+            },
+            cache: "no-store",
+            body: JSON.stringify({ postIds: batchPostIds }),
+            signal: controller.signal,
+          });
+
+          if (!response.ok) throw new Error("Unable to load view counts");
+
+          return parseViewCounts(await response.json(), batchPostIds);
+        })
+      );
+
+      const counts = Object.assign({}, ...batchCounts) as Record<
+        number,
+        number
+      >;
+
+      if (
+        requestId === requestSequence.current &&
+        !controller.signal.aborted
+      ) {
+        setViewCounts(counts);
+        setViewCountUnavailable(false);
+      }
+    } catch {
+      if (
+        requestId === requestSequence.current &&
+        !controller.signal.aborted
+      ) {
+        controller.abort();
+        setViewCounts({});
+        setViewCountUnavailable(true);
+      }
+    } finally {
+      if (viewCountController.current === controller) {
+        viewCountController.current = null;
+      }
+    }
+  }, []);
+
+  const fetchContent = useCallback(async () => {
+    const requestId = ++requestSequence.current;
+    viewCountController.current?.abort();
     setLoading(true);
 
     const { data, error } = await supabase
@@ -86,14 +175,20 @@ export default function AdminContentPage() {
         ascending: false,
       });
 
+    if (requestId !== requestSequence.current) return;
+
     if (error) {
       showMessage(error.message);
       setLoading(false);
       return;
     }
 
-    const rows = data || [];
+    const rows: AdminContentPost[] = data || [];
     setPosts(rows);
+    void loadViewCounts(
+      rows.map((post) => post.id),
+      requestId
+    );
 
     const authorIds = Array.from(
       new Set(rows.map((post) => post.author_id).filter(Boolean))
@@ -105,9 +200,11 @@ export default function AdminContentPage() {
         .select("id, username, avatar_url, role, status")
         .in("id", authorIds);
 
-      const nextProfileMap: Record<string, any> = {};
+      if (requestId !== requestSequence.current) return;
 
-      (profiles || []).forEach((profile: any) => {
+      const nextProfileMap: Record<string, AdminContentProfile> = {};
+
+      (profiles || []).forEach((profile: AdminContentProfile) => {
         nextProfileMap[profile.id] = profile;
       });
 
@@ -116,8 +213,23 @@ export default function AdminContentPage() {
       setProfileMap({});
     }
 
-    setLoading(false);
-  }
+    if (requestId === requestSequence.current) {
+      setLoading(false);
+    }
+  }, [loadViewCounts, showMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchContent();
+    });
+
+    return () => {
+      cancelled = true;
+      requestSequence.current += 1;
+      viewCountController.current?.abort();
+    };
+  }, [fetchContent]);
 
   async function writeLog(
     action: string,
@@ -211,13 +323,13 @@ export default function AdminContentPage() {
     });
   }
 
-  function getTitle(post: any) {
+  function getTitle(post: AdminContentPost) {
     if (post.title) return post.title;
 
     return `日记 · ${new Date(post.created_at).toLocaleDateString("zh-CN")}`;
   }
 
-  function getViewHref(post: any) {
+  function getViewHref(post: AdminContentPost) {
     if (post.type === "diary") return `/diary/${post.id}`;
 
     if (post.type === "article" && post.slug) {
@@ -229,7 +341,7 @@ export default function AdminContentPage() {
 
   const filteredPosts = posts.filter((post) => {
     const keyword = search.toLowerCase().trim();
-    const author = profileMap[post.author_id];
+    const author = post.author_id ? profileMap[post.author_id] : undefined;
 
     const matchType = filter === "all" || post.type === filter;
     const matchStatus =
@@ -304,11 +416,13 @@ export default function AdminContentPage() {
           <ContentCard
             key={post.id}
             post={post}
-            author={profileMap[post.author_id]}
+            author={post.author_id ? profileMap[post.author_id] : undefined}
             updateVisibility={updateVisibility}
             softDeletePost={softDeletePost}
             getTitle={getTitle}
             getViewHref={getViewHref}
+            viewCount={viewCounts[post.id] ?? null}
+            viewCountUnavailable={viewCountUnavailable}
           />
         ))}
       </div>
@@ -332,4 +446,29 @@ export default function AdminContentPage() {
       />
     </div>
   );
+}
+
+function parseViewCounts(
+  body: unknown,
+  postIds: number[]
+): Record<number, number> {
+  if (!body || typeof body !== "object" || !("counts" in body)) {
+    throw new Error("Invalid view count response");
+  }
+
+  const rawCounts = body.counts;
+  if (!rawCounts || typeof rawCounts !== "object" || Array.isArray(rawCounts)) {
+    throw new Error("Invalid view count response");
+  }
+
+  const counts: Record<number, number> = {};
+  for (const postId of postIds) {
+    const count = (rawCounts as Record<string, unknown>)[String(postId)];
+    if (!Number.isSafeInteger(count) || (count as number) < 0) {
+      throw new Error("Invalid view count response");
+    }
+    counts[postId] = count as number;
+  }
+
+  return counts;
 }
