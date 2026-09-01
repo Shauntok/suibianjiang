@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import TranslatedText from "@/components/TranslatedText";
 import RoomStatusButton from "@/components/RoomStatusButton";
+import RoomAvatarEditor from "@/components/RoomAvatarEditor";
 
 function getImages(content: string) {
   return Array.from(content.matchAll(/!\[[^\]]*\]\((.*?)\)/g))
@@ -142,19 +143,11 @@ export default function UserRoomClient({
             className="relative min-w-0 scroll-mt-28 px-5 pb-6 md:px-8 md:pb-10"
           >
             <div className="-mt-9 flex min-w-0 items-end gap-4 md:-mt-16 md:block">
-              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border-4 border-black bg-zinc-900 shadow-[0_0_55px_rgba(255,255,255,0.12)] md:h-32 md:w-32">
-                {profile.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-3xl text-white/25 md:text-5xl">
-                    👤
-                  </div>
-                )}
-              </div>
+              <RoomAvatarEditor
+                profileId={profile.id}
+                username={profile.username}
+                initialAvatarUrl={profile.avatar_url}
+              />
 
               <div className="mb-2 min-w-0 md:hidden">
                 <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 backdrop-blur-xl">

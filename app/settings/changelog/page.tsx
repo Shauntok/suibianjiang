@@ -1,6 +1,21 @@
 export default function SettingsChangelogPage() {
   const logs = [
     {
+      version: "Alpha 0.9.5",
+      date: "2026.09.01",
+      features: [
+        "居民现在可以在自己的公开房间点击头像，直接选择并更换照片",
+      ],
+      fixes: [
+        "移除头像上常驻的相机图标，相机提示只会在鼠标靠近或键盘聚焦时出现",
+      ],
+      improvements: [
+        "头像快捷编辑只对房主开放，访客查看其他居民房间时仍是普通头像",
+        "头像上传加入 8MB 大小限制、上传状态与失败回退提示",
+      ],
+    },
+
+    {
       version: "Alpha 0.9.4",
       date: "2026.08.31",
       features: [
