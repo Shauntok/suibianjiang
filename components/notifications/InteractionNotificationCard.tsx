@@ -95,6 +95,11 @@ export default function InteractionNotificationCard({
   const targetLabel = post
     ? `${post.type === "diary" ? "日记" : post.type === "article" ? "文章" : "内容"}《${post.title}》`
     : "内容";
+  const likeDescription = notification.comment_id
+    ? post
+      ? `喜欢了你在${targetLabel}下的留言`
+      : "喜欢了你的留言"
+    : `喜欢了你的${targetLabel}`;
 
   return (
     <article
@@ -133,10 +138,10 @@ export default function InteractionNotificationCard({
               <p className="safe-text mt-1 text-sm leading-6 text-white/45">
                 {targetHref ? (
                   <Link href={targetHref} className="transition hover:text-white/75">
-                    喜欢了你的{targetLabel}
+                    {likeDescription}
                   </Link>
                 ) : (
-                  <>喜欢了你的{targetLabel}</>
+                  <>{likeDescription}</>
                 )}
               </p>
             </>

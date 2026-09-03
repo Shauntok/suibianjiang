@@ -60,6 +60,37 @@ describe("InteractionNotificationCard", () => {
     expect(screen.getAllByText(/12/).length).toBeGreaterThan(0);
   });
 
+  it("identifies a comment like without claiming the linked article belongs to the recipient", () => {
+    render(
+      <InteractionNotificationCard
+        notification={{
+          ...baseNotification,
+          actor_count: 1,
+          recent_actor_ids: ["rain"],
+          comment_id: "comment-1",
+          post: {
+            id: 42,
+            title: "迷茫",
+            type: "article",
+            slug: "mi-mang",
+          },
+          comment: {
+            id: "comment-1",
+            content: "我看完了你的文章。",
+          },
+        }}
+        actorsById={actors}
+        onMarkRead={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("link", { name: "喜欢了你在文章《迷茫》下的留言" })
+    ).toHaveAttribute("href", "/articles/mi-mang");
+    expect(screen.queryByText("喜欢了你的文章《迷茫》")).not.toBeInTheDocument();
+  });
+
   it("keeps comment text visible and links diaries by database id", () => {
     render(
       <InteractionNotificationCard

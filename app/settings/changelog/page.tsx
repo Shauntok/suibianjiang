@@ -1,6 +1,18 @@
 export default function SettingsChangelogPage() {
   const logs = [
     {
+      version: "Alpha 0.9.6",
+      date: "2026.09.04",
+      features: [],
+      fixes: [
+        "修复留言获赞通知误写成文章或日记获赞，造成作品归属误会的问题",
+      ],
+      improvements: [
+        "留言获赞现在会明确显示为居民喜欢了你在对应作品下留下的留言",
+      ],
+    },
+
+    {
       version: "Alpha 0.9.5",
       date: "2026.09.01",
       features: [
